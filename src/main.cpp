@@ -14,6 +14,8 @@
 #include "BleModule.h"
 #include "NetworkPortal.h"
 #include <WiFi.h>
+#include <esp_heap_caps.h>
+#include <esp_ota_ops.h>
 #include "LED.h"
 #include "Buzzer.h"
 #include "controller_keys.h" // 按键引脚定义
@@ -76,6 +78,7 @@ void NRFControl();		// 1.NRF遥控    ->   无人机 / 四驱车
 void localGame();		// 2.本机游戏   ->   1.贪吃蛇 2.打砖块 3.飞机大战 4.2048 5.俄罗斯方块
 void netInfo();			// 4.网络信息   ->   1.哔哩哔哩 2.天气预报 3.股票基金
 void wifiSettings();                 // 4.4 WiFi 管理：热点、网页配网与设备数据
+void deviceMonitor();                // 6.4 设备监测：内存、硬件、网络和蓝牙统计
 void joystickCalibration();
 void bluetoothMenu();
 void bluetoothModules();
@@ -655,8 +658,45 @@ void btGamepad()
 // 6.系统设置   ->   1.按键测试 2.陀螺仪立方体
 void joystickCalibration();
 void systemSet() {
-    const uint16_t *titles[]={ui_m5,ui_m6,ui_cal}; const uint16_t *icons[]={image_data_6_1_keysTest,image_data_6_2_cube,nullptr};
-    void (*actions[])()={keysTest,cube,joystickCalibration}; selectMenu(titles,icons,actions,3,false,ui_m4);
+    const uint16_t *titles[]={ui_m5,ui_m6,ui_cal,ui_monitor}; const uint16_t *icons[]={image_data_6_1_keysTest,image_data_6_2_cube,ui_calicon,ui_monitoricon};
+    void (*actions[])()={keysTest,cube,joystickCalibration,deviceMonitor}; selectMenu(titles,icons,actions,4,false,ui_m4);
+}
+void deviceMonitor(){
+    JoystickNavigation navigation;UiRefresh refresh;int page=0;uint32_t last=0;bool dirty=true;
+    screen.spr.unloadFont();screen.spr.setSwapBytes(true);screen.spr.setTextDatum(TC_DATUM);
+    const uint16_t* headings[]={ui_monmemory,ui_monheapdetail,ui_monpsdetail,ui_monhardware,ui_monnetwork,ui_monble};
+    const uint16_t* labels[][4]={{ui_monheap,ui_monpsram,ui_monfirmware,ui_monblockratio},{ui_montotal,ui_monfree,ui_monmin,ui_monblock},{ui_montotal,ui_monused,ui_monfree,ui_monblock},{ui_moncpu,ui_monflash,ui_montasks,ui_monuptime},{ui_monwifi,ui_monquality,ui_monclients,ui_monip},{ui_montx,ui_monrx,ui_monerrors,ui_monperiod}};
+    auto percent=[](size_t used,size_t total){return total?100.0f*used/total:0.0f;};
+    auto kib=[](size_t n){return String(n/1024.0f,1)+" KiB";};
+    // Image size calculation walks flash: cache immutable data outside the UI loop.
+    const esp_partition_t* slot=esp_ota_get_running_partition();const size_t slotSize=slot?slot->size:0;
+    const size_t sketchSize=ESP.getSketchSize();uint32_t paints=0,maxPaintUs=0;
+    while(true){keys.kvs_update();char c=Serial.available()?Serial.read():0;auto move=navigation.update(keys.kvs.LX,keys.kvs.LY,millis());
+        if(keys.x.pressed()||c=='Q')break;
+        if(keys.left.pressed()||c=='L'||move==JoystickNavigation::Left){page=(page+5)%6;dirty=true;}
+        if(keys.right.pressed()||c=='R'||move==JoystickNavigation::Right){page=(page+1)%6;dirty=true;}
+        if(c=='S')uiScreenshot();
+        if(c=='T')Serial.printf("[MONITOR] page=%d paints=%u max_paint_us=%u interval_ms=100\n",page,paints,maxPaintUs);
+        if(dirty||millis()-last>=100){uint32_t paintStart=micros();bool switched=dirty;last=millis();dirty=false;
+            size_t total=ESP.getHeapSize(),freeHeap=ESP.getFreeHeap(),ptotal=ESP.getPsramSize(),pfree=ESP.getFreePsram();
+            size_t block=heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+            float ratios[]={percent(total-freeHeap,total),percent(ptotal-pfree,ptotal),percent(sketchSize,slotSize),percent(block,freeHeap)};
+            String value[4];
+            if(page==0)for(int i=0;i<4;i++)value[i]=(i==1&&!ptotal)||(i==2&&!slotSize)?"--":String(ratios[i],1)+" %";
+            if(page==1){value[0]=kib(total);value[1]=kib(freeHeap);value[2]=kib(ESP.getMinFreeHeap());value[3]=kib(block);}
+            if(page==2){value[0]=kib(ptotal);value[1]=kib(ptotal-pfree);value[2]=kib(pfree);value[3]=kib(heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));}
+            if(page==3){value[0]=String(ESP.getCpuFreqMHz())+" MHz";value[1]=String(ESP.getFlashChipSize()/1048576.0f,1)+" MiB";value[2]=String(uxTaskGetNumberOfTasks());value[3]=String(millis()/3600000)+"h "+String(millis()/60000%60)+"m "+String(millis()/1000%60)+"s";}
+            if(page==4){bool linked=WiFi.status()==WL_CONNECTED;int rssi=linked?WiFi.RSSI():0;value[0]=linked?String(rssi)+" dBm":"--";value[1]=linked?String(constrain(2*(rssi+100),0,100))+" %":"--";value[2]=String(WiFi.softAPgetStationNum());value[3]=linked?WiFi.localIP().toString():"--";}
+            if(page==5){auto s=bleModule.snapshot();value[0]=String(s.tx);value[1]=String(s.rx);value[2]=String(s.errors);value[3]=String(s.period)+" ms";}
+            screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,8,220,44,headings[page]);
+            for(int i=0;i<4;i++){int y=74+i*87;screen.spr.pushImage(10,y,220,44,labels[page][i]);screen.spr.setTextColor(i==0?TFT_CYAN:i==1?TFT_GREEN:i==2?0xFD20:0xC55F,TFT_BLACK);screen.spr.drawString(value[i],120,y+43,4);
+                if(page==0){screen.spr.drawRect(28,y+74,184,6,TFT_DARKGREY);screen.spr.fillRect(30,y+76,int(constrain(ratios[i],0.0f,100.0f)*1.8f),2,TFT_CYAN);}}
+            screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString(String(page+1)+" / 6",120,437,4);screen.spr.pushImage(10,480,220,44,ui_monnav);
+            refresh.push((uint16_t*)screen.spr.getPointer());
+            paints++;maxPaintUs=max(maxPaintUs,uint32_t(micros()-paintStart));
+            if(switched)Serial.printf("[MONITOR PAGE] %d paint_us=%u\n",page,micros()-paintStart);
+        }delay(2);
+    }screen.spr.loadFont(chinese_32);
 }
 void joystickCalibration()
 {

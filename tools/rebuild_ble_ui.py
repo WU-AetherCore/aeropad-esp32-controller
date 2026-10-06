@@ -50,6 +50,8 @@ assets += [('menugroup','功能菜单',30,(240,245,255))]
 assets += [(n,t,24,(220,228,240)) for n,t in [('cube_roll','横滚'),('cube_pitch','俯仰'),('cube_yaw','航向')]]
 assets=[(n,shorter.get(n,t),30 if n in menu_titles else 28 if n in status_titles else 24,c) for n,t,z,c in assets]
 manifest={}
+assets += [('monitor','设备监测',30,(240,245,255))]
+assets += [(n,t,24,(220,228,240)) for n,t in [('monmemory','内存使用率'),('monheap','内部堆内存'),('monpsram','外部 PSRAM'),('monfirmware','固件分区占用'),('monblockratio','最大块占空闲比例'),('monheapdetail','内部内存详情'),('montotal','总容量'),('monfree','当前空闲'),('monmin','历史最低空闲'),('monblock','最大可分配块'),('monpsdetail','外部内存详情'),('monused','当前已用'),('monhardware','硬件与运行'),('moncpu','CPU 频率'),('monflash','物理 Flash 容量'),('montasks','系统任务数量'),('monuptime','本次运行时间'),('monnetwork','无线网络状态'),('monwifi','WiFi 信号强度'),('monquality','信号质量估算'),('monclients','热点连接设备'),('monip','WiFi 地址'),('monble','蓝牙模块统计'),('montx','发送逻辑帧数量'),('monrx','接收字节数量'),('monerrors','发送错误次数'),('monperiod','发送间隔'),('monnav','左右切页 · X返回')]]
 assets += [('bootwifi_on','开机自动连接：开',24,(64,240,128)),('bootwifi_off','开机自动连接：关',24,(255,216,64)),('wifibootkeys','O热点·A自动连接',24,(220,228,240))]
 assets += [('wifimanage','WiFi 管理',30,(240,245,255)),('hotspoton','热点已开启',28,(64,240,128)),('hotspotoff','热点未开启',28,(255,216,64)),('wifipassword','热点密码',24,(220,228,240)),('routeron','WiFi 已连接',24,(64,240,128)),('routeroff','WiFi 未连接',24,(255,216,64)),('wifiguide','连接热点打开网页',24,(220,228,240)),('wifitoggle','O 开关热点',24,(220,228,240))]
 out=['#pragma once','#include <Arduino.h>']
@@ -77,6 +79,28 @@ out+=['const uint16_t ui_wifiicon[] PROGMEM = {']
 out += [','.join(f'0x{v:04x}' for v in vals[i:i+16])+',' for i in range(0,len(vals),16)]
 out+=['};']
 im.save(root/'logs/ui_wifiicon.png')
+for name in ['monitoricon','calicon']:
+    im=Image.new('RGB',(200,200));d=ImageDraw.Draw(im)
+    if name=='monitoricon':
+        d.rounded_rectangle((10,24,190,153),radius=16,outline=(0,220,255),width=7)
+        d.line([(26,104),(53,104),(65,70),(83,127),(102,57),(119,103),(173,103)],fill=(80,235,140),width=7)
+        d.rounded_rectangle((88,153,112,171),radius=3,fill=(220,228,240))
+        d.rounded_rectangle((56,174,144,181),radius=3,fill=(0,220,255))
+    else:
+        # Distinct joystick-centering target, not the send-settings sliders.
+        d.ellipse((36,24,164,152),outline=(0,220,255),width=7)
+        d.line((100,8,100,40),fill=(220,228,240),width=5)
+        d.line((100,136,100,168),fill=(220,228,240),width=5)
+        d.line((20,88,52,88),fill=(220,228,240),width=5)
+        d.line((148,88,180,88),fill=(220,228,240),width=5)
+        d.rounded_rectangle((65,164,135,185),radius=9,outline=(0,220,255),width=5)
+        d.line((100,160,100,100),fill=(220,228,240),width=10)
+        d.ellipse((78,66,122,110),fill=(80,235,140))
+        d.ellipse((94,82,106,94),fill=(240,245,255))
+    vals=[((r>>3)<<11)|((g>>2)<<5)|(b>>3) for r,g,b in im.getdata()]
+    out += [f'const uint16_t ui_{name}[] PROGMEM = {{']
+    out += [','.join(f'0x{v:04x}' for v in vals[i:i+16])+',' for i in range(0,len(vals),16)]
+    out+=['};'];im.save(root/f'logs/ui_{name}.png')
 (root/'src/generated_ui_text.h').write_text('\n'.join(out))
 
 (root/'logs/ui_typography.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2),encoding='utf-8')

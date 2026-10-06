@@ -6,6 +6,8 @@ ESP32-S3 遥控器的 CLion / PlatformIO 二次开发，240×536 AMOLED 中文�
 
 ## 功能
 
+- 系统设置 → 设备监测：六页内存/PSRAM/固件百分比、硬件、WiFi及蓝牙统计，100ms刷新；独立监测和校准图标。见 [设备监测说明](docs/DEVICE_MONITOR.md)。
+
 - 网络信息 → WiFi 管理：热点配网、路由器凭据掉电保存、中文网页状态和实时控件数据。操作见 [WiFi 管理说明](docs/WIFI_MANAGEMENT.md)。
 
 - 固定字号中文菜单，标题30px、正文24px、状态28px；已连接绿色，未连接黄色，操作说明白色。
