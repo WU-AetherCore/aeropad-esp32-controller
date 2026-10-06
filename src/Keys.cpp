@@ -1,4 +1,5 @@
 #include "Keys.h"
+#include "NetworkPortal.h"
 #include <Preferences.h>
 
 
@@ -207,6 +208,7 @@ void Keys::kvs_update()
 	if (mpu6050.getAngleY() < -45) { kvs.angleY = -100; }
 	else if (mpu6050.getAngleY() > 45) { kvs.angleY = 100; }
 	else { kvs.angleY = (int8_t)map(mpu6050.getAngleY(), -45, 45, -100, 100); }
+    WIFI::publish(kvs);
 }
 
 // 串口打印按键数据

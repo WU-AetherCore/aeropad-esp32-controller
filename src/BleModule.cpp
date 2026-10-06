@@ -6,7 +6,7 @@ void BleModule::begin() {
     if(_task)return;
     Preferences prefs;prefs.begin("blemodule",true);
     int format=prefs.getInt("format",prefs.getBool("json",false)?1:0);_state.format=format>=0&&format<=3?format:0;
-    int usb=prefs.getInt("usb",0);_usbMode=usb>=0&&usb<=2?usb:0;
+    int usb=prefs.getInt("usb",0);_usbMode=usb>=0&&usb<=4?usb:0;
     int period=prefs.getInt("period",50);_state.period=ControlPacket::validPeriod(period)?period:50;
     prefs.end();
     xTaskCreate(task,"ble_module",24576,this,1,&_task);
@@ -45,16 +45,31 @@ void BleModule::configure(int format,int period) {
 void BleModule::notify(uint8_t* data,size_t length) {
     char hex[49]={};size_t count=min(size_t(16),length);
     for(size_t i=0;i<count;i++)snprintf(hex+i*3,4,"%02X ",data[i]);
-    portENTER_CRITICAL(&_lock);_state.rx+=length;memcpy(_state.received,hex,sizeof(hex));
+    char preview[49]={}; int previewMode;
+    portENTER_CRITICAL(&_lock);previewMode=_usbMode;_state.rx+=length;
+    if(previewMode==3){size_t p=0;for(size_t i=0;i<length&&p<sizeof(preview)-1;i++){uint8_t c=data[i];if(c>=32&&c<=126)preview[p++]=char(c);else if(p+4<sizeof(preview)){snprintf(preview+p,sizeof(preview)-p,"\\x%02X",c);p+=4;}}}
+    else if(previewMode==4)snprintf(preview,sizeof(preview),"JSON len=%u",unsigned(length));
+    else memcpy(preview,hex,sizeof(preview));
+    memcpy(_state.received,preview,sizeof(preview));
     if(_usbMode){size_t n=min(length,sizeof(_usbRx)-_usbLength);memcpy(_usbRx+_usbLength,data,n);_usbLength+=n;_usbDropped+=length-n;}
     portEXIT_CRITICAL(&_lock);
 }
 int BleModule::usbMode(){portENTER_CRITICAL(&_lock);int m=_usbMode;portEXIT_CRITICAL(&_lock);return m;}
-void BleModule::configureUsb(int mode){if(mode<0||mode>2)return;portENTER_CRITICAL(&_lock);_usbMode=mode;_usbLength=0;_usbDropped=0;portEXIT_CRITICAL(&_lock);Preferences p;p.begin("blemodule",false);p.putInt("usb",mode);p.end();}
+void BleModule::writeUsb(const uint8_t* data,size_t length){
+    if(!_client||!_client->isConnected()||!_write||!length)return;
+    size_t chunk=min(size_t(180),size_t(max(23,int(_client->getMTU()))-3));
+    for(size_t off=0;off<length;off+=chunk)_write->writeValue(data+off,min(chunk,length-off),!_write->canWriteNoResponse());
+}
+void BleModule::configureUsb(int mode){if(mode<0||mode>4)return;portENTER_CRITICAL(&_lock);_usbMode=mode;_usbLength=0;_usbDropped=0;portEXIT_CRITICAL(&_lock);Preferences p;p.begin("blemodule",false);p.putInt("usb",mode);p.end();}
 void BleModule::flushUsb(){
     uint8_t bytes[512];size_t n;int mode;uint32_t dropped;
     portENTER_CRITICAL(&_lock);n=_usbLength;mode=_usbMode;dropped=_usbDropped;memcpy(bytes,_usbRx,n);_usbLength=0;_usbDropped=0;portEXIT_CRITICAL(&_lock);
-    if(n){Serial.print(mode==1?"[BLE RX HEX] ":"[BLE RX TEXT] ");for(size_t i=0;i<n;i++){uint8_t c=bytes[i];if(mode==1)Serial.printf("%02X ",c);else if((c>=32&&c<=126)||c=='\r'||c=='\n'||c=='\t')Serial.write(c);else Serial.printf("\\x%02X",c);}Serial.println();}
+    if(n){
+        if(mode==1){Serial.write(bytes,n);}
+        else if(mode==2){Serial.print("[BLE RX HEX] ");for(size_t i=0;i<n;i++)Serial.printf("%02X ",bytes[i]);Serial.println();}
+        else if(mode==3){Serial.print("[BLE RX TEXT] ");for(size_t i=0;i<n;i++){uint8_t c=bytes[i];if((c>=32&&c<=126)||c=='\r'||c=='\n'||c=='\t')Serial.write(c);else Serial.printf("\\x%02X",c);}Serial.println();}
+        else if(mode==4){Serial.print("{\"len\":");Serial.print(n);Serial.print(",\"hex\":\"");for(size_t i=0;i<n;i++)Serial.printf("%02X",bytes[i]);Serial.print("\",\"text\":\"");for(size_t i=0;i<n;i++){uint8_t c=bytes[i];if(c=='\\'||c=='\"')Serial.printf("\\\\%c",c);else if(c>=32&&c<=126)Serial.write(c);else Serial.printf("\\u%04X",c);}Serial.println("\"}");}
+    }
     if(dropped)Serial.printf("[BLE RX] USB queue dropped %u bytes\n",dropped);
 }
 bool BleModule::send(bool neutral) {

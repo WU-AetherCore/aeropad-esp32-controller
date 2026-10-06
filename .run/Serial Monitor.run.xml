@@ -1,0 +1,5 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Serial Monitor" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="AeroPad" TARGET_NAME="serial_monitor" CONFIG_NAME="AeroPad" RUN_TARGET_PROJECT_NAME="AeroPad" RUN_TARGET_NAME="serial_monitor">
+    <method v="2" />
+  </configuration>
+</component>

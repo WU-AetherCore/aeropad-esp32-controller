@@ -12,7 +12,8 @@
 #include "Screen.h"
 #include "Bluetooth.h"
 #include "BleModule.h"
-#include "WIFI.h"
+#include "NetworkPortal.h"
+#include <WiFi.h>
 #include "LED.h"
 #include "Buzzer.h"
 #include "controller_keys.h" // 按键引脚定义
@@ -74,6 +75,7 @@ void menu();			// 0.主菜单     ->   1.NRF遥控  2.本机游戏    4.网络�
 void NRFControl();		// 1.NRF遥控    ->   无人机 / 四驱车
 void localGame();		// 2.本机游戏   ->   1.贪吃蛇 2.打砖块 3.飞机大战 4.2048 5.俄罗斯方块
 void netInfo();			// 4.网络信息   ->   1.哔哩哔哩 2.天气预报 3.股票基金
+void wifiSettings();                 // 4.4 WiFi 管理：热点、网页配网与设备数据
 void joystickCalibration();
 void bluetoothMenu();
 void bluetoothModules();
@@ -104,6 +106,14 @@ void weather();			// 4.2 天气预报
 void stock();			// 4.3 股票基金
 
 //----------------------------------------------5.蓝牙手柄------------------------------------------------------
+void btGamepad();                    // 5.1 蓝牙手柄：实时摇杆、按键与回显
+void bluetoothMenu();                // 5.2 蓝牙中心主菜单
+void bluetoothModules();             // 5.3 搜索、连接与模块控制
+void bluetoothModuleSettings();      // 5.4 模块子菜单：串口/发送设置
+void serialSettings();               // 5.5 本机回显格式与对方串口设置
+void bluetoothOutputSettings();      // 5.6 BLE 遥控输出格式与间隔
+void bluetoothBaudSettings();        // 5.7 对方 UART 波特率设置
+void bluetoothLayoutPreview();       // 5.8 串口布局回归预览
 
 //----------------------------------------------6.系统设置------------------------------------------------------
 void keysTest();		// 6.1 按键测试
@@ -130,6 +140,7 @@ void setup() {
 	screen.init();
 	buzzer.init();
 	led.init();
+    wifi.begin();                    // 后台维护网页服务及已保存路由器连接
 
 	// 基本功能测试
 	{
@@ -243,7 +254,6 @@ void selectMenu(const uint16_t *const *titles, const uint16_t *const *icons, voi
                     screen.spr.fillTriangle(112,282,112,327,145,305,TFT_CYAN);
                     screen.spr.fillRect(108,226,5,102,TFT_CYAN);
                     screen.spr.fillTriangle(96,278,113,266,113,290,TFT_CYAN);
-                    screen.spr.fillCircle(120,327,5,TFT_WHITE);
                 } else if(titles[index]==ui_sendsettings) {
                     const int knob[]={87,150,112};
                     for(int i=0;i<3;i++){screen.spr.fillRoundRect(48,230+i*42,144,5,2,TFT_CYAN);screen.spr.fillCircle(knob[i],232+i*42,12,TFT_WHITE);screen.spr.fillCircle(knob[i],232+i*42,5,TFT_CYAN);}
@@ -296,10 +306,33 @@ void localGame() {
     void (*actions[])()={snake,brick,plane,num2048,tetris}; selectMenu(titles,icons,actions,5,false,ui_m2);
 }
 void netInfo() {
-    const uint16_t *titles[]={ui_m12,ui_m13,ui_m14};
+    const uint16_t *titles[]={ui_m12,ui_m13,ui_m14,ui_wifimanage};
     // Bilibili icon has a different height; keep it out of the fixed-size renderer.
-    const uint16_t *icons[]={image_data_4_1_bilibili,image_data_4_2_weather,image_data_4_3_stock};
-    void (*actions[])()={bilibili,weather,stock}; selectMenu(titles,icons,actions,3,false,ui_m3);
+    const uint16_t *icons[]={image_data_4_1_bilibili,image_data_4_2_weather,image_data_4_3_stock,ui_wifiicon};
+    void (*actions[])()={bilibili,weather,stock,wifiSettings}; selectMenu(titles,icons,actions,4,false,ui_m3);
+}
+
+void wifiSettings(){
+    wifi.begin();UiRefresh refresh;screen.spr.unloadFont();screen.spr.setSwapBytes(true);screen.spr.setTextDatum(TC_DATUM);
+    while(true){keys.kvs_update();char cmd=Serial.available()?Serial.read():0;
+        if(keys.x.pressed()||cmd=='Q')break;if(keys.o.pressed()||cmd=='E')wifi.toggleHotspot();
+        if(keys.a.pressed()||cmd=='A')wifi.setAutoConnect(!wifi.autoConnect());
+        if(cmd=='T')Serial.printf("[WIFI] hotspot=%d station=%d ap_ip=%s sta_ip=%s clients=%u auto=%d\n",wifi.hotspot(),WiFi.status(),WiFi.softAPIP().toString().c_str(),WiFi.localIP().toString().c_str(),WiFi.softAPgetStationNum(),wifi.autoConnect());
+        if(cmd=='S')uiScreenshot();
+        screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,8,220,44,ui_wifimanage);
+        screen.spr.drawFastHLine(20,64,200,TFT_DARKGREY);
+        screen.spr.drawRoundRect(6,78,228,206,12,wifi.hotspot()?TFT_CYAN:TFT_DARKGREY);
+        screen.spr.pushImage(10,83,220,44,wifi.hotspot()?ui_hotspoton:ui_hotspotoff);
+        screen.spr.setTextColor(TFT_CYAN,TFT_BLACK);screen.spr.drawString("AeroPad-Setup",120,131,4);
+        screen.spr.pushImage(10,162,220,44,ui_wifipassword);screen.spr.drawString("12345678",120,204,4);
+        screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("192.168.4.1",120,246,4);
+        bool connected=WiFi.status()==WL_CONNECTED;
+        screen.spr.drawRoundRect(6,296,228,98,12,connected?TFT_GREEN:TFT_DARKGREY);
+        screen.spr.pushImage(10,300,220,44,connected?ui_routeron:ui_routeroff);
+        screen.spr.setTextColor(TFT_CYAN,TFT_BLACK);screen.spr.drawString(connected?WiFi.localIP().toString():"--",120,350,4);
+        screen.spr.pushImage(10,400,220,44,wifi.autoConnect()?ui_bootwifi_on:ui_bootwifi_off);screen.spr.pushImage(10,444,220,44,ui_wifibootkeys);screen.spr.pushImage(10,488,220,44,ui_exit);
+        refresh.push((uint16_t*)screen.spr.getPointer());delay(20);
+    }screen.spr.loadFont(chinese_32);
 }
 
 String uiDeviceName(const char* name,int width=204) {
@@ -327,14 +360,15 @@ void serialSettings() {
         keys.kvs_update();auto move=navigation.update(keys.kvs.LX,keys.kvs.LY,millis());char cmd=Serial.available()?Serial.read():0;
         if(cmd=='S')uiScreenshot();if(cmd=='W')uiScreenshot(true);if(keys.x.pressed()||cmd=='Q')break;
         if(keys.up.pressed()||keys.down.pressed()||cmd=='U'||cmd=='D'||move==JoystickNavigation::Up||move==JoystickNavigation::Down)target=1-target;
+        // 本机 USB 回显格式独立于 BLE 遥控发送格式：关闭、HEX、文本、JSON。
         if(target==0&&(keys.left.pressed()||keys.right.pressed()||cmd=='L'||cmd=='R'||move==JoystickNavigation::Left||move==JoystickNavigation::Right)){
-            bool right=keys.right.pressed()||cmd=='R'||move==JoystickNavigation::Right;bleModule.configureUsb((bleModule.usbMode()+(right?1:2))%3);
+            bool right=keys.right.pressed()||cmd=='R'||move==JoystickNavigation::Right;bleModule.configureUsb((bleModule.usbMode()+(right?1:4))%5);
         }
         if(target==1&&(keys.o.pressed()||cmd=='E')&&bleModule.snapshot().state==BleModule::Connected){bluetoothBaudSettings();screen.spr.unloadFont();screen.spr.setTextDatum(TC_DATUM);screen.spr.resetViewport();navigation.reset();refresh.invalidate();}
         if(cmd=='T')Serial.printf("[SERIAL] usb_mode=%d remote_connected=%d\n",bleModule.usbMode(),bleModule.snapshot().state==BleModule::Connected);
         screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,8,220,44,ui_uartsettings);screen.spr.drawFastHLine(20,66,200,TFT_DARKGREY);
         screen.spr.pushImage(10,98,220,44,ui_seriallocal);screen.spr.pushImage(10,146,220,44,ui_usbmode);
-        const uint16_t* modes[]={ui_usboff,ui_usbhex,ui_usbtext};screen.spr.pushImage(10,192,220,44,modes[bleModule.usbMode()]);
+        const uint16_t* modes[]={ui_usboff,ui_usbbinary,ui_usbhex,ui_usbtext,ui_usbjson};screen.spr.pushImage(10,192,220,44,modes[bleModule.usbMode()]);
         screen.spr.pushImage(10,250,220,44,ui_serialremote);screen.spr.pushImage(10,296,220,44,bleModule.snapshot().state==BleModule::Connected?ui_uartconfirm:ui_disconnected);
         screen.spr.drawRoundRect(12,target?244:88,216,target?102:150,10,TFT_CYAN);
         screen.spr.pushImage(10,360,220,44,ui_usbinfo);screen.spr.pushImage(10,402,220,44,ui_usbhelp);
@@ -359,7 +393,11 @@ void bluetoothOutputSettings() {
     int field=0;screen.spr.unloadFont();screen.spr.setSwapBytes(true);screen.spr.setTextDatum(TC_DATUM);
     while(true) {
         keys.kvs_update();auto move=navigation.update(keys.kvs.LX,keys.kvs.LY,millis());
-        char cmd=Serial.available()?Serial.read():0;if(cmd=='S')uiScreenshot();if(cmd=='W')uiScreenshot(true);
+        char cmd=Serial.available()?Serial.read():0;
+        // COM11 输入的普通字节透传给已连接模块；S/W/Q/T 等仅在单字节调试命令时保留。
+        bool serialPayload=cmd && Serial.available();
+        if(serialPayload){uint8_t first=uint8_t(cmd),buf[96];size_t n=0;buf[n++]=first;while(Serial.available()&&n<sizeof(buf))buf[n++]=uint8_t(Serial.read());bleModule.writeUsb(buf,n);cmd=0;}
+        if(cmd=='S')uiScreenshot();if(cmd=='W')uiScreenshot(true);
         if(keys.x.pressed()||cmd=='Q')break;
         bool up=keys.up.pressed()||cmd=='U'||move==JoystickNavigation::Up;
         bool down=keys.down.pressed()||cmd=='D'||move==JoystickNavigation::Down;
@@ -432,7 +470,8 @@ screen.spr.fillSprite(TFT_BLACK);
                 snprintf(text,sizeof(text),"RX %d  RY %d",data.RX,data.RY);screen.spr.drawString(text,120,264,4);
                 snprintf(text,sizeof(text),"L %d  R %d",data.L_knob,data.R_knob);screen.spr.drawString(text,120,302,4);
                 snprintf(text,sizeof(text),"KEY %05lX",(unsigned long)ControlPacket::buttons(data));screen.spr.drawString(text,120,340,4);
-                screen.spr.pushImage(10,376,220,44,status.notifications?ui_rxfeedback:ui_rxnotprovided);
+                const uint16_t* echoTitles[]={ui_rxoff,ui_rxbinary,ui_rxfeedback,ui_rxtext,ui_rxjson};
+                screen.spr.pushImage(10,376,220,44,status.notifications?echoTitles[bleModule.usbMode()]:ui_rxnotprovided);
                 screen.spr.setTextSize(1);screen.spr.drawString(String(status.received).substring(0,12),120,420,4);screen.spr.drawString(String(status.received).substring(12,24),120,449,4);
                 screen.spr.pushImage(10,486,220,44,ui_moduleexit);
             } else if(linked) {

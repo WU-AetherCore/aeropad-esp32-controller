@@ -24,14 +24,14 @@ assets += [(n,t,22,(220,228,240)) for n,t in [('joyselect','摇杆 / 方向键�
 assets += [('cubelive','实时姿态',24,(80,235,140)),('cubepaused','已暂停',24,(255,216,64)),('cubeangles','横滚 X · 俯仰 Y · 航向 Z',20,(220,228,240)),('cubeyaw','航向为相对角度（度）',20,(220,228,240)),('cubecontrols','O 归零 · A 暂停/继续',21,(220,228,240))]
 assets += [(n,t,21,(220,228,240)) for n,t in [('cubestill','请保持遥控器静止'),('cubecal','正在校准陀螺仪'),('cubeback','X 返回 · B 静置校准')]]
 assets += [('cuberetry','请静置后按 B 校准',21,(255,216,64))]
-assets += [(n,t,22,(220,228,240)) for n,t in [('blehub','蓝牙中心'),('module','蓝牙模块控制'),('sendsettings','发送设置'),('sendformat','输出格式'),('sendperiod','发送间隔'),('blebaud','BLE 无需串口波特率'),('uartremote','设备菜单可设置 UART'),('settingsnav','上下选择 · 左右调整'),('settingsback','X 返回 · 自动保存'),('searchwait','正在搜索附近设备'),('nodevices','未发现可连接设备'),('scancontrols','O 连接 · A 重新搜索'),('scanback','X 返回 · B 发送设置'),('rxfeedback','接收回显（十六进制）'),('rxnotprovided','模块未提供回显通道'),('moduleexit','B + X 返回设备菜单')]]
+assets += [(n,t,22,(220,228,240)) for n,t in [('blehub','蓝牙中心'),('module','蓝牙模块控制'),('sendsettings','发送设置'),('sendformat','输出格式'),('sendperiod','发送间隔'),('blebaud','BLE 无需串口波特率'),('uartremote','设备菜单可设置 UART'),('settingsnav','上下选择 · 左右调整'),('settingsback','X 返回 · 自动保存'),('searchwait','正在搜索附近设备'),('nodevices','未发现可连接设备'),('scancontrols','O 连接 · A 重新搜索'),('scanback','X 返回 · B 发送设置'),('rxoff','回显：关闭'),('rxfeedback','回显：HEX'),('rxbinary','回显：二进制'),('rxtext','回显：文本'),('rxjson','回显：JSON'),('rxnotprovided','模块未提供回显通道'),('moduleexit','B + X 返回设备菜单')]]
 assets += [(n,t,23,(255,216,64)) for n,t in [('scanning','正在搜索'),('connecting','正在连接'),('nouart','设备不支持串口服务'),('connectfailed','连接失败，请重试')]]
 assets += [(n,t,23,(220,228,240)) for n,t in [('uartsettings','模块串口设置'),('uartactual','已读取实际波特率'),('uartauto','自动读取模块参数'),('uartmanual','手动选择波特率'),('uartneedprotocol','需要模块支持参数协议'),('uartnav','上下选模式 · 左右选值'),('uartconfirm','O 读取或应用 · X 返回'),('startcontrol','开始遥控'),('disconnectdevice','断开设备连接')]]
 assets += [('uartunsupported','模块不支持远程设置',22,(255,216,64)),('uartapplied','已应用并核对参数',22,(80,235,140)),('uartapplyfailed','设置失败，未确认生效',22,(255,216,64))]
 assets += [('formatbinary','二进制 · 20 字节',23,(0,255,255)),('formatjson','JSON 文本',23,(0,255,255))]
 assets += [('formathex','HEX 十六进制',24,(0,255,255)),('formattext','文本数据',24,(0,255,255))]
 assets += [('preview','界面预览',24,(255,216,64))]
-assets += [(n,t,24,(220,228,240)) for n,t in [('seriallocal','本机 USB 串口'),('serialremote','对方模块串口'),('usbmode','接收回显格式'),('usboff','关闭回显'),('usbhex','HEX 十六进制'),('usbtext','文本转义二进制'),('usbinfo','USB无需设波特率'),('usbhelp','乱码先查数据格式'),('remotehelp','需支持参数协议'),('serialpick','选择要设置的设备')]]
+assets += [(n,t,24,(220,228,240)) for n,t in [('seriallocal','本机 USB 串口'),('serialremote','对方模块串口'),('usbmode','接收回显格式'),('usboff','关闭回显'),('usbbinary','原始二进制'),('usbhex','HEX 十六进制'),('usbtext','文本数据'),('usbjson','JSON 数据'),('usbinfo','USB无需设波特率'),('usbhelp','左右选择格式'),('remotehelp','需支持参数协议'),('serialpick','选择要设置的设备')]]
 # Shared typography. Menu titles never shrink based on name length.
 menu_titles={f'm{i}' for i in range(15)}|{'title','blehub','module','sendsettings','uartsettings','cal','drone','car','jcal','kcal','guide','inspect','fine','cauto','cmanual','cview','cknob','startcontrol','disconnectdevice','uartauto','uartmanual','menugroup'}
 status_titles={'connected','disconnected','scanning','connecting','cubelive','cubepaused','cuberetry','saved','failed','crange','cconfirm','nouart','connectfailed','uartunsupported','uartapplied','uartapplyfailed'}
@@ -50,6 +50,8 @@ assets += [('menugroup','功能菜单',30,(240,245,255))]
 assets += [(n,t,24,(220,228,240)) for n,t in [('cube_roll','横滚'),('cube_pitch','俯仰'),('cube_yaw','航向')]]
 assets=[(n,shorter.get(n,t),30 if n in menu_titles else 28 if n in status_titles else 24,c) for n,t,z,c in assets]
 manifest={}
+assets += [('bootwifi_on','开机自动连接：开',24,(64,240,128)),('bootwifi_off','开机自动连接：关',24,(255,216,64)),('wifibootkeys','O热点·A自动连接',24,(220,228,240))]
+assets += [('wifimanage','WiFi 管理',30,(240,245,255)),('hotspoton','热点已开启',28,(64,240,128)),('hotspotoff','热点未开启',28,(255,216,64)),('wifipassword','热点密码',24,(220,228,240)),('routeron','WiFi 已连接',24,(64,240,128)),('routeroff','WiFi 未连接',24,(255,216,64)),('wifiguide','连接热点打开网页',24,(220,228,240)),('wifitoggle','O 开关热点',24,(220,228,240))]
 out=['#pragma once','#include <Arduino.h>']
 for name,text,size,color in assets:
     font=ImageFont.truetype(fontpath,size)
@@ -65,6 +67,16 @@ for name,text,size,color in assets:
     out += [f'const uint16_t ui_{name}[] PROGMEM = {{']
     out += [','.join(f'0x{v:04x}' for v in vals[i:i+16])+',' for i in range(0,len(vals),16)]
     out += ['};',f'const uint16_t ui_{name}_w={width}, ui_{name}_h={height};']
+# WiFi menu icon uses the same 200x200 canvas as existing menu icons.
+im=Image.new('RGB',(200,200));d=ImageDraw.Draw(im)
+for radius in (88,60,32):
+    d.arc((100-radius,124-radius,100+radius,124+radius),215,325,fill=(0,220,255),width=13)
+d.ellipse((89,116,111,138),fill=(240,245,255))
+vals=[((r>>3)<<11)|((g>>2)<<5)|(b>>3) for r,g,b in im.getdata()]
+out+=['const uint16_t ui_wifiicon[] PROGMEM = {']
+out += [','.join(f'0x{v:04x}' for v in vals[i:i+16])+',' for i in range(0,len(vals),16)]
+out+=['};']
+im.save(root/'logs/ui_wifiicon.png')
 (root/'src/generated_ui_text.h').write_text('\n'.join(out))
 
 (root/'logs/ui_typography.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2),encoding='utf-8')

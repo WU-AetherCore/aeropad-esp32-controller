@@ -28,6 +28,7 @@ public:
     void configureUsb(int mode);
     int usbMode();
     void flushUsb();
+    void writeUsb(const uint8_t* data,size_t length);
 private:
     Snapshot _state;
     KVS _keys;

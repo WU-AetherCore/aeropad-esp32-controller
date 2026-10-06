@@ -1,0 +1,8 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Build Firmware" type="CMakeRunConfiguration" factoryName="Application" PROJECT_NAME="AeroPad" TARGET_NAME="firmware" CONFIG_NAME="AeroPad" RUN_TARGET_PROJECT_NAME="AeroPad" RUN_TARGET_NAME="firmware">
+    <option name="RUN_PATH" value="C:/Windows/System32/cmd.exe" />
+    <option name="PROGRAM_PARAMS" value="/d /c build.cmd" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <method v="2" />
+  </configuration>
+</component>

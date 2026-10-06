@@ -1,0 +1,8 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Flash COM11" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="AeroPad" TARGET_NAME="upload" CONFIG_NAME="AeroPad" RUN_TARGET_PROJECT_NAME="AeroPad" RUN_TARGET_NAME="upload">
+    <option name="RUN_PATH" value="C:/Windows/System32/cmd.exe" />
+    <option name="PROGRAM_PARAMS" value="/d /c flash.cmd" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <method v="2" />
+  </configuration>
+</component>
