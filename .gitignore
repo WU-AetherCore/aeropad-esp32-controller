@@ -1,0 +1,13 @@
+.pio/
+cmake-build*/
+build/
+compile_commands.json
+.idea/workspace.xml
+__pycache__/
+
+tools/ble_test_deps/
+logs/
+release/
+.idea/
+.run/
+*.exe

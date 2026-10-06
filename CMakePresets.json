@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "AeroPad",
+      "displayName": "AeroPad ESP32-S3",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/cmake-build-aeropad",
+      "cacheVariables": {"CMAKE_BUILD_TYPE": "Release"}
+    }
+  ],
+  "buildPresets": [
+    {"name": "firmware", "configurePreset": "AeroPad", "targets": ["firmware"]},
+    {"name": "upload", "configurePreset": "AeroPad", "targets": ["upload"]}
+  ]
+}
