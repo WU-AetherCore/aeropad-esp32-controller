@@ -1,91 +1,75 @@
-# AeroPad ESP32 Controller
+# ESP32-S3 多功能遥控器
+### 复刻与二次开发 · 中文界面 · 蓝牙控制 · CLion / PlatformIO
 
-ESP32-S3 遥控器的 CLion / PlatformIO 二次开发，240×536 AMOLED 中文界面，双摇杆、双ADC旋钮、按键/拨杆与MPU6050。基于 [卜开元 / bukaiyuan《ESP32 万能遥控器》](https://oshwhub.com/bukaiyuan/ESP32-hang-mu-yao-kong-qi)，原系统源码署名 **bilibili-黑人黑科技**；本项目维护与修改：**WU-AetherCore**。
+基于立创开源硬件平台的 [《ESP32 万能遥控器》](https://oshwhub.com/bukaiyuan/ESP32-hang-mu-yao-kong-qi)。原项目发布账号为 **bukaiyuan**；原系统源码文件头署名为 **bilibili-黑人黑科技**。本仓库二次开发与维护账号为 **WU-AetherCore**。**AeroPad** 是本派生工程的内部标识，用于目录、构建配置及蓝牙名称，不是原项目名称，也不是原作者姓名。
 
-保留原作者署名和来源，派生软件 GPL-3.0-only；字体及第三方组件分别保留许可。见 [NOTICE](NOTICE.md)、[LICENSE](LICENSE)、[第三方声明](THIRD_PARTY_NOTICES.md)。不是原作者官方版本。本仓库发布源代码与文档，不包含原硬件设计文件，不提供组合固件二进制下载。
+原代码和资源的署名保留，来源及各组件许可见 [作者与来源](NOTICE.md)、[第三方声明](THIRD_PARTY_NOTICES.md) 和 [LICENSE](LICENSE)。
 
-## 功能
+## 从这里开始
 
-- 系统设置 → 设备监测：六页内存/PSRAM/固件百分比、硬件、WiFi及蓝牙统计，100ms刷新；独立监测和校准图标。见 [设备监测说明](docs/DEVICE_MONITOR.md)。
+|你要做什么|对应资料|
+|---|---|
+|第一次了解项目、查看完整菜单|[项目与源码导览](docs/PROJECT_GUIDE.md)|
+|在 CLion 编译、烧录到自己的遥控器|[构建与烧录](docs/BUILD_AND_FLASH.md)|
+|查看硬件引脚、校准、按键和进退界面|[硬件与操作](docs/HARDWARE_AND_CONTROLS.md)|
+|让另一块板子接收数据并控制自己的设备|**[接收端接入教程](docs/RECEIVER_INTEGRATION.md)**|
+|查每个控制字段、字节、CRC和示例|**[控制数据协议 v1](docs/CONTROL_PROTOCOL.md)**|
+|判断发送格式、回显、波特率与乱码|[连接与数据排查](docs/TROUBLESHOOTING.md)|
+|配置手机/电脑热点配网|[WiFi 管理](docs/WIFI_MANAGEMENT.md)|
+|查看设备内存、固件占用和蓝牙统计|[设备监测](docs/DEVICE_MONITOR.md)|
+|玩本机游戏、了解推箱子闯关操作|[游戏玩法](docs/LOCAL_GAMES.md)|
+|查当前测试边界与历史修改|[验证状态](docs/VALIDATION.md) · [更新记录](CHANGELOG.md)|
 
-- 网络信息 → WiFi 管理：热点配网、路由器凭据掉电保存、中文网页状态和实时控件数据。操作见 [WiFi 管理说明](docs/WIFI_MANAGEMENT.md)。
+## 三种通信方式，先选对入口
 
-- 固定字号中文菜单，标题30px、正文24px、状态28px；已连接绿色，未连接黄色，操作说明白色。
-- 标准BLE HID游戏手柄，六模拟轴、14按钮与方向帽，实时连接状态。
-- BLE模块搜索、选中长名称滚动、NUS/FFE0连接、控制数据发送及通知回显。
-- 二进制20字节、JSON、HEX、文本四格式；20/50/100/200/250/500/1000/1500/2000ms九档间隔，掉电保存。
-- 串口设置位于蓝牙模块控制内：本机USB回显支持关闭、原始二进制、HEX、文本、JSON五种格式；同时提供支持扩展协议的对方UART参数设置。
-- 摇杆中心/极限和两个旋钮极限校准，NVS保存；按键测试左右框101×101，陀螺仪框60×60。
-- MPU6050姿态立方体，静置校准、归零、暂停。局部刷新与子页面返回全页重画。
+|入口|通信方式|接收端需要做什么|当前状态|
+|---|---|---|---|
+|蓝牙中心 → 蓝牙游戏手柄|标准 BLE HID 游戏手柄|电脑/手机配对，由支持手柄的软件读取输入|已实现；游戏兼容性取决于软件|
+|蓝牙中心 → 蓝牙模块控制|遥控器作为 BLE 客户端，写 NUS 或 FFE0/FFE1 模块|模块透传到 UART，目标程序按本仓库 v1 协议解析、映射执行器|已实现发送与通知回显|
+|NRF遥控 → 无人机 / 四驱车|nRF24L01|需要另行完成接收端协议和设备控制|**菜单为待实现页，不会驱动模型**|
 
-- 本机游戏：贪吃蛇、打砖块、飞机大战、2048、俄罗斯方块、推箱子，支持摇杆/按键操作、最高分或解锁进度保存。见 [游戏玩法](docs/LOCAL_GAMES.md)。
-- 推箱子提供10关递增挑战、已解锁关卡重玩、128步撤销、墙角提示、动态庆祝和3.2秒自动切关；固定地图均经过求解验证。
+自定义 v1 帧不等于 HID 报告，也不等于原作者 NRF 结构体。WiFi 网页用于配置和查看数据，当前不向车辆下发控制指令。
 
-NRF只保留无人机和四驱车，待接收端协议；网络信息中的哔哩哔哩、天气及股票入口尚未实现，WiFi管理已实现。
+## 已实现功能
 
-![发送格式](docs/images/formats.png)
-![串口设置返回](docs/images/serial-return.png)
+- 双摇杆、双 ADC 旋钮、18路按键/拨杆及两路归一化倾角数据；引导校准、死区、极限与 NVS 掉电保存。
+- 统一中文菜单、绿色已连接/黄色未连接、独立操作说明；按键测试、姿态立方体、六页设备监测。
+- BLE 模块扫描、连接、选中长名称滚动、四种控制发送格式、九档发送间隔、五种 USB 接收回显。
+- WiFi 热点配网、开机自动连接选项、网页状态和控件数据查看。
+- 贪吃蛇、打砖块、飞机大战、2048、俄罗斯方块、10关推箱子；推箱子连续撤销、庆祝动画与自动切关。
 
-## 构建与烧录
+网络信息中的哔哩哔哩、天气预报、股票基金仍是待实现入口。远程 UART 参数设置需要对方实现扩展服务；仅扫描到名称不能确定模块芯片或其 AT 指令。
 
-目标：ESP32-S3，16MB Flash、8MB OPI PSRAM、RM67162。不同板子先核对 `src/pins_config.h`、`src/controller_keys.h` 和显示接线。安装PlatformIO Core：
+## 当前界面
+
+以下三张是整理仓库时通过串口回读的设备帧缓冲，240×536，未使用模拟效果图或摄像头照片。
+
+|主菜单|设备监测|推箱子|
+|:---:|:---:|:---:|
+|![主菜单](docs/images/current-menu.png)|![设备监测](docs/images/current-monitor.png)|![推箱子](docs/images/current-sokoban.png)|
+
+[截图说明](docs/images/README.md) 记录采集方式和限制。
+
+## 快速编译
+
+目标硬件：ESP32-S3、16MB Flash、8MB OPI PSRAM、RM67162 AMOLED。先按 [构建说明](docs/BUILD_AND_FLASH.md) 安装 PlatformIO，再运行：
 
 ```powershell
-python -m pip install platformio==6.1.18
 pio run -e aeropad
 pio run -e aeropad -t upload --upload-port COM11
-pio device monitor -p COM11 -b 115200
 ```
 
-端口可在platformio.ini修改，烧录前关闭占用串口的助手/监视器。Windows默认PlatformIO环境 `%USERPROFILE%\.platformio\penv` 可用 `build.cmd` / `flash.cmd`。
+COM11 是维护者的遥控器端口，其他电脑应改为自己的真实端口。Windows 脚本为 `build.cmd`、`flash.cmd`、`monitor.cmd`。CLion 保留 **AeroPad** preset：构建 **firmware** 编译，构建 **upload** 烧录。
 
-CLion打开根目录，先执行一次PlatformIO构建安装工具链，再加载 **AeroPad** CMake preset。选择 **firmware** 目标点击构建编译；选择 **upload** 目标点击构建烧录。ESP32固件不作为电脑应用运行。CMake入口针对Windows CLion，需要Ninja；Linux/macOS使用PlatformIO命令。
+## 接收端示例在哪里
 
-```powershell
-cmake --preset AeroPad
-cmake --build --preset firmware
-cmake --build --preset upload
-```
+- [BLE-UART桥接示例](examples/AeroPad-BLE-Receiver/README.md)：另一块 ESP32-S3 接收无线数据，原样转发到 UART，回传 UART 字节；**不驱动电机**。
+- [串口解析与控制映射示例](examples/Serial-Control-Receiver/README.md)：另一块 ESP32-S3 解析二进制帧、校验CRC、处理失联，打印左右电机控制意图；适配 `applyOutputs()` 后才能驱动你的电机。
+- [Python四格式接收器](examples/host_receiver.py)：电脑从串口接收二进制/JSON/HEX/文本，显示解析结果和控制意图。
+- [可移植 C++11 解析器](examples/common/ControlReceiver.h)：UART/STM32/其他 MCU 可复用的二进制流解析和看门狗。
 
-## 操作
+接收端工程使用自己的串口，**不要把接收端固件刷入遥控器 COM11**。接入步骤、接线、字段映射和失联动作见 [接收端教程](docs/RECEIVER_INTEGRATION.md)。
 
-|页面|进入/选择|退出/特殊动作|
-|---|---|---|
-|主菜单|左右方向键，O进入|主菜单不拦截摇杆|
-|子菜单|方向键或左摇杆，O进入|X返回|
-|蓝牙游戏手柄|电脑配对后HID输出|B+X同时返回，单独按键是控制输入|
-|模块列表|方向键/摇杆，O连接，A搜索|X返回蓝牙中心，B进入模块设置|
-|模块设置|串口设置/发送设置，O进入|X返回列表|
-|已连接设备操作|开始遥控、串口设置、断开|X断开；遥控中B+X返回设备操作并发送释放帧|
-|串口设置|上下选本机/对方；本机左右选回显；对方O进入|X逐级返回|
-|发送设置|上下选格式/间隔，左右调整|X返回，即改即存|
-|按键测试|所有控件保留测试用途|必须B+X同时返回系统设置|
-|校准|按引导采集中心/极限，最后O保存|X取消草稿；有效微调立即保存|
-|立方体|O归零，A暂停/继续，B静置校准|X返回|
+## 发布范围
 
-摇杆菜单先回中，超过55%移动，回中25%，长推450ms后每180ms重复；采集/遥控/按键测试不拦截轴输入。
-
-## 协议与乱码
-
-**[完整控制数据协议](docs/CONTROL_PROTOCOL.md)** 包含每个字段、18个按钮bit、字节长度、端序、CRC、示例、BLE分片及间隔带宽计算。标准游戏手柄HID与此模块协议独立。
-
-串口助手文本接收请选择JSON/文本；二进制使用HEX接收。HEX发送本身是ASCII字节值表示。对方电气UART参数仍需一致，BLE与USB CDC不靠UART波特率传输。
-
-WUFUDONG实机FFE0连接已测，但未提供远程UART参数接口，不凭设备名猜AT命令。兼容扩展服务与另一块ESP32接收板的示例见 [AeroPad-BLE-Receiver](examples/AeroPad-BLE-Receiver)，不要将接收端刷入遥控器COM11。
-
-## 硬件、校准与验证
-
-四轴GPIO：LX2、LY1、RX16、RY15，旋钮14/3；MPU6050为0x68，MCP23017为0x27。原蜂鸣器与RX共享GPIO16，当前禁用，确认独立接线后才能启用。
-
-有效校准保存到Flash NVS，复位/掉电恢复，不开机覆盖中心。完整引导最终确认才保存；无效微调拒绝。ADC0～4095与遥控输出-100～100不同。MPU无磁力计，航向仅相对角度，静置零偏不覆盖摇杆NVS。
-
-2026-10-06，本地主机协议/导航/投影测试通过，两个固件编译通过，遥控器COM11烧录Hash通过。实机四格式/九间隔、复位保存、连续嵌套串口页面往返通过，逻辑帧与SPI实际提交帧一致，抓取的中文界面逐页检查。
-
-电脑HID连接/断开/重连已测，WUFUDONG连接已测；未完整验证电脑串口助手实时接收窗口、全部物理动作、游戏兼容性或远端UART设置。SPI提交帧不是摄像头拍摄，独立接收端只编译。GitHub Actions仅构建/主机测试，不访问硬件。
-
-```sh
-g++ -std=c++17 tools/test_control_packet.cpp -o test_protocol
-./test_protocol
-```
-
-重建中文位图：安装Pillow后 `python tools/rebuild_ble_ui.py`，使用仓库OFL字体；正常构建无需Pillow。RF24 GPL-2.0-only与原项目GPL-3.0的组合二进制许可兼容性尚需处理，本次不发布该组合二进制，详见第三方声明。
+仓库发布源码、协议、示例、说明和测试，不包含原硬件设计文件或组合固件下载。派生软件许可为 GPL-3.0-only；RF24 的 GPL-2.0-only 与 GPL-3.0 组合二进制再分发问题尚未解决，详情见第三方声明。字体、显示驱动及其他依赖仍适用各自许可。

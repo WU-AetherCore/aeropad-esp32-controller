@@ -1,11 +1,19 @@
-# 原作者与修改说明
+# 原作者、来源与二次开发说明
 
-本项目 AeroPad ESP32 Controller 是对 **卜开元（嘉立创开源平台账号 bukaiyuan）** 的《ESP32 万能遥控器》的复刻与二次开发，原系统框架源码署名 **bilibili-黑人黑科技**。原作者身份依据本地原始源码文件头与原项目地址记录，不将其作品署名改为本项目维护者。
+|角色|按证据保留的名称|依据|
+|---|---|---|
+|原项目发布账号|bukaiyuan|[立创开源硬件平台原项目](https://oshwhub.com/bukaiyuan/ESP32-hang-mu-yao-kong-qi) 的地址账号|
+|原系统源码署名|bilibili-黑人黑科技|原始 `1.ControllerSystem.ino`、`2.receiver_tank.ino` 文件头；原项目说明亦提及“黑人黑科技”|
+|原项目名称|ESP32 万能遥控器|原项目公开页面标题|
+|本派生工程维护账号|WU-AetherCore|本 GitHub 仓库所属账号|
+|本派生工程内部标识|AeroPad|二次开发目录、CMake preset、BLE 名称中的标识；不是原作者身份|
 
-原项目：https://oshwhub.com/bukaiyuan/ESP32-hang-mu-yao-kong-qi
+此前资料将 `bukaiyuan` 写成“卜开元”，没有可核对的姓名依据，现已删除该写法。账号、源码署名和真实姓名不能擅自等同，不推断两种署名的身份对应关系。
 
-该页面标注 **GPL 3.0**。本仓库派生软件按 **GPL-3.0-only** 发布，完整协议见 [LICENSE](LICENSE)。原硬件设计、原图标、原代码及其他第三方作品的版权仍归其各自作者；本仓库不是原作者官方版本，也不代表原作者认可本次修改。
+本工程是对原遥控器系统的复刻与二次开发，不是原作者官方版本，不表示原作者认可这些修改。原作者代码、引脚定义、图标、原字库及硬件设计的权利仍归原作者或相应权利人；原始文件头保留，维护者不得用自己的署名覆盖。
 
-2026-10-06，WU-AetherCore 的二次开发包含：CLion/PlatformIO 工程化、ADC 校准与 NVS 保存、统一中文界面与局部刷新、蓝牙 HID 状态更新、BLE-UART 扫描/连接/回显、四种控制数据格式与协议文档、模块内串口设置、菜单名称滚动、立方体姿态及主机测试。原有文件头保留，后续维护者应保留来源、许可和修改说明。
+原项目页面标注 GPL 3.0。本派生软件按 GPL-3.0-only 发布，全文见 [LICENSE](LICENSE)。字体、显示驱动与依赖的各自来源/许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。仓库没有打包原硬件设计文件。
 
-显示驱动源于 LILYGO T-Display-S3-AMOLED 生态及原工程，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。新增静态中文字形改用 Noto Sans CJK SC（SIL OFL 1.1），不分发 Windows 黑体字体或从该字体生成的新增 UI 字形。继承的 chinese_32 与原图标作为原项目资产保留，并明确来源。
+WU-AetherCore 维护的改动包括 CLion/PlatformIO 工程化、校准与掉电保存、中文界面与刷新、BLE HID、BLE-UART 控制和回显、自定义 v1 控制协议、WiFi 管理、设备监测、本机游戏、接收端示例及测试。具体修改见 [CHANGELOG.md](CHANGELOG.md)。
+
+新增中文位图使用 Noto Sans CJK SC（SIL OFL 1.1）；继承的 `chinese_32` 和原图标明确作为原项目资源保留。推箱子参考开源 Sokoban 的规则与设计说明，本项目固定关卡为自生成布局，未复制该项目的地图、图形或声音。

@@ -2,7 +2,7 @@
 
 |组件|来源|许可与说明|
 |---|---|---|
-|遥控器原系统、引脚与图标/原字库|卜开元 / bukaiyuan，源码署名 bilibili-黑人黑科技，[原项目](https://oshwhub.com/bukaiyuan/ESP32-hang-mu-yao-kong-qi)|原项目标注 GPL 3.0；保留原署名，不将原资源宣称为自创|
+|遥控器原系统、引脚与图标/原字库|原项目发布账号 bukaiyuan；源码文件头署名 bilibili-黑人黑科技，[原项目](https://oshwhub.com/bukaiyuan/ESP32-hang-mu-yao-kong-qi)|原项目标注 GPL 3.0；保留原署名，不推断账号对应的真实姓名|
 |RM67162 / AMOLED 驱动生态|[Xinyuan-LilyGO/T-Display-S3-AMOLED](https://github.com/Xinyuan-LilyGO/T-Display-S3-AMOLED)，包含 nikthefix 注释|MIT，Copyright (c) 2023 Xinyuan-LilyGO；原许可副本 LICENSES/LILYGO-MIT.txt|
 |NotoSansCJKsc-Regular.otf 与新增中文位图|[notofonts/noto-cjk](https://github.com/notofonts/noto-cjk)|SIL Open Font License 1.1，完整原许可见 assets/fonts/OFL.txt；字体及字形不改称GPL字体|
 |TFT_eSPI 2.5.43|Bodmer|包含 MIT / FreeBSD 等原作者声明，保留库自身许可|
