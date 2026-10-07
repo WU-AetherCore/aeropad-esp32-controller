@@ -169,21 +169,14 @@ void Keys::kvs_update()
 	kvs.board_R = board_R.read();
 
 
-	// 4个拨杆开关    // 左1 --- 左2 --- 右1 --- 右2
-	kvs.switch_L1 = L1.read();
-	kvs.switch_L2 = L2.read();
-	kvs.switch_R1 = R1.read();
-	kvs.switch_R2 = R2.read();
-	// 功能按键
-	kvs.up = up.read();
-	kvs.down = down.read();
-	kvs.left = left.read();
-	kvs.right = right.read();
-	kvs.o = o.read();
-	kvs.x = x.read();
-	kvs.a = a.read();
-	kvs.b = b.read();
-
+    // One atomic GPIO snapshot replaces twelve separate I2C reads.
+    const uint16_t gpio=mcp.readGPIOAB();
+    kvs.switch_L1=(gpio>>MCP_PIN_L1)&1; kvs.switch_L2=(gpio>>MCP_PIN_L2)&1;
+    kvs.switch_R1=(gpio>>MCP_PIN_R1)&1; kvs.switch_R2=(gpio>>MCP_PIN_R2)&1;
+    kvs.up=(gpio>>MCP_PIN_UP)&1; kvs.down=(gpio>>MCP_PIN_DOWN)&1;
+    kvs.left=(gpio>>MCP_PIN_LEFT)&1; kvs.right=(gpio>>MCP_PIN_RIGHT)&1;
+    kvs.o=(gpio>>MCP_PIN_O)&1; kvs.x=(gpio>>MCP_PIN_X)&1;
+    kvs.a=(gpio>>MCP_PIN_A)&1; kvs.b=(gpio>>MCP_PIN_B)&1;
 
 	// 电位旋钮
 	kvs.L_knob = (int8_t)constrain(map(raw(4), _knobMinimum[0], _knobMaximum[0], 100, -100),-100,100);

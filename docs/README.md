@@ -19,3 +19,9 @@
 |[更新记录](../CHANGELOG.md)|按日期整理的改动|
 
 `BLE_CONTROL_PROTOCOL.md` 和 `LATEST_UPDATE.md` 保留为兼容旧链接的入口；历史验证独立存放于 `history/`，不代表当前全部功能已实测。
+
+- [NRF 调试](NRF_DEBUG.md)：本机检查、射频参数、专用测试包与对端联调。
+
+- [NRF 无人机与四驱车控制](NRF_CONTROL.md)：遥控操作、通用接收端、SBUS、差速混控与32字节协议。
+
+- [NRF设置](NRF_SETTINGS.md)：可保存的射频参数、地址、原始数据与江协参考程序预设。

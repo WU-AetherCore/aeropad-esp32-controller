@@ -7,7 +7,7 @@ fontpath = str(root / 'assets/fonts/NotoSansCJKsc-Regular.otf')
 assets = [('connected','已连接',28,(64,240,128)),('disconnected','未连接',28,(255,216,64)),('back','按 X 键返回主菜单',23,(220,228,240)),('title','蓝牙游戏手柄',32,(240,245,255))]
 assets += [('cal','控件校准',30,(240,245,255)),('release','松开摇杆，按 O 校准',21,(220,228,240)),('saved','校准成功，已保存',23,(64,240,128)),('failed','请松开摇杆后重试',22,(255,216,64)),('dead','左右键调整中心死区',21,(220,228,240))]
 assets += [('drone','无人机',30,(240,245,255)),('car','四驱车',30,(240,245,255)),('protocol','待配置接收端协议',23,(255,216,64))]
-assets += [('m0', '主菜单', 28, (240, 245, 255)), ('m1', 'NRF遥控', 28, (240, 245, 255)), ('m2', '本机游戏', 28, (240, 245, 255)), ('m3', '网络信息', 28, (240, 245, 255)), ('m4', '系统设置', 28, (240, 245, 255)), ('m5', '按键测试', 28, (240, 245, 255)), ('m6', '陀螺仪立方体', 28, (240, 245, 255)), ('m7', '贪吃蛇', 28, (240, 245, 255)), ('m8', '打砖块', 28, (240, 245, 255)), ('m9', '飞机大战', 28, (240, 245, 255)), ('m10', '2048', 28, (240, 245, 255)), ('m11', '俄罗斯方块', 28, (240, 245, 255)), ('m12', '哔哩哔哩', 28, (240, 245, 255)), ('m13', '天气预报', 28, (240, 245, 255)), ('m14', '股票基金', 28, (240, 245, 255))]
+assets += [('m0', '主菜单', 28, (240, 245, 255)), ('m1', 'NRF遥控', 28, (240, 245, 255)), ('m2', '本机游戏', 28, (240, 245, 255)), ('m3', '网络信息', 28, (240, 245, 255)), ('m4', '系统设置', 28, (240, 245, 255)), ('m5', '按键测试', 28, (240, 245, 255)), ('m6', '陀螺仪立方体', 28, (240, 245, 255)), ('m7', '贪吃蛇', 28, (240, 245, 255)), ('m8', '打砖块', 28, (240, 245, 255)), ('m9', '飞机大战', 28, (240, 245, 255)), ('m10', '2048', 28, (240, 245, 255)), ('m11', '俄罗斯方块', 28, (240, 245, 255))]
 assets += [('switch','左右键切换',22,(220,228,240)),('enter','O 键进入 · X 键返回',21,(220,228,240)),('exit','按 X 键返回上级',22,(220,228,240)),('pending','此功能尚未实现',23,(255,216,64))]
 assets += [('rootenter','按 O 键进入',23,(220,228,240))]
 assets += [('keysexit','同时按 B + X 返回',23,(220,228,240))]
@@ -33,7 +33,7 @@ assets += [('formathex','HEX 十六进制',24,(0,255,255)),('formattext','文本
 assets += [('preview','界面预览',24,(255,216,64))]
 assets += [(n,t,24,(220,228,240)) for n,t in [('seriallocal','本机 USB 串口'),('serialremote','对方模块串口'),('usbmode','接收回显格式'),('usboff','关闭回显'),('usbbinary','原始二进制'),('usbhex','HEX 十六进制'),('usbtext','文本数据'),('usbjson','JSON 数据'),('usbinfo','USB无需设波特率'),('usbhelp','左右选择格式'),('remotehelp','需支持参数协议'),('serialpick','选择要设置的设备')]]
 # Shared typography. Menu titles never shrink based on name length.
-menu_titles={f'm{i}' for i in range(15)}|{'title','blehub','module','sendsettings','uartsettings','cal','drone','car','jcal','kcal','guide','inspect','fine','cauto','cmanual','cview','cknob','startcontrol','disconnectdevice','uartauto','uartmanual','menugroup'}
+menu_titles={f'm{i}' for i in range(12)}|{'title','blehub','module','sendsettings','uartsettings','cal','drone','car','jcal','kcal','guide','inspect','fine','cauto','cmanual','cview','cknob','startcontrol','disconnectdevice','uartauto','uartmanual','menugroup'}
 status_titles={'connected','disconnected','scanning','connecting','cubelive','cubepaused','cuberetry','saved','failed','crange','cconfirm','nouart','connectfailed','uartunsupported','uartapplied','uartapplyfailed'}
 shorter={
  'release':'松开摇杆·O校准','jdesc':'校准中心与行程','settingsback':'X返回·自动保存','uartapplied':'已核对并生效','m10':'2048 游戏','back':'按 X 返回主菜单','dead':'左右调整中心死区','switch':'左右键选择','enter':'O进入 · X返回','rootenter':'O 键进入',

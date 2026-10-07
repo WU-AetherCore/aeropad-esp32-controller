@@ -8,6 +8,13 @@
 // 包含库
 //-------------------------------------------------------------------------------------------------------------
 #include "NRF.h"
+#include "NrfUiText.h"
+#include "NrfDebugPacket.h"
+#include "NrfGenericConfig.h"
+#include "NrfButtons.h"
+#include "NrfActionLatch.h"
+#include "NrfAsyncTx.h"
+#include "NrfControlProtocol.h"
 #include "Keys.h"
 #include "Screen.h"
 #include "Bluetooth.h"
@@ -47,9 +54,6 @@
 #include "icons/2game/2_3plane.h"
 #include "icons/2game/2_4num2048.h"
 #include "icons/2game/2_5tetris.h"
-#include "icons/4info/4_1_bilibili.h"
-#include "icons/4info/4_2_weather.h"
-#include "icons/4info/4_3_stock.h"
 #include "icons/6set/6_1_keysTest.h"
 #include "icons/6set/6_2_cube.h"
 
@@ -78,9 +82,12 @@ Buzzer buzzer;   // 蜂鸣器
 //-------------------------------------------- 一级菜单  -------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 void menu();			// 0.主菜单     ->   1.NRF遥控  2.本机游戏    4.网络信息  5.蓝牙手柄  6.系统设置
+void nrfControlPage(uint8_t mode);
+void nrfDebug();
+void nrfGeneric();
 void NRFControl();		// 1.NRF遥控    ->   无人机 / 四驱车
 void localGame();		// 贪吃蛇、打砖块、飞机大战、2048、俄罗斯方块、推箱子
-void netInfo();			// 4.网络信息   ->   1.哔哩哔哩 2.天气预报 3.股票基金
+void netInfo();			// 4.网络信息   ->   WiFi管理
 void wifiSettings();                 // 4.4 WiFi 管理：热点、网页配网与设备数据
 void deviceMonitor();                // 6.4 设备监测：内存、硬件、网络和蓝牙统计
 void joystickCalibration();
@@ -109,9 +116,6 @@ void sokoban();             // 2.6 推箱子：十关挑战、连续撤销、庆
 //----------------------------------------------------------------------------------------------------
 
 //----------------------------------------------4.网络信息------------------------------------------------------
-void bilibili();		// 4.1 哔哩哔哩
-void weather();			// 4.2 天气预报
-void stock();			// 4.3 股票基金
 
 //----------------------------------------------5.蓝牙手柄------------------------------------------------------
 void btGamepad();                    // 5.1 蓝牙手柄：实时摇杆、按键与回显
@@ -230,6 +234,8 @@ void uiFooter(bool menuPage) {
     if(menuPage) { screen.spr.pushImage(10,440,220,44,ui_switch); screen.spr.pushImage(10,488,220,44,ui_enter); }
     else screen.spr.pushImage(10,484,220,44,ui_exit);
 }
+const uint16_t nrfGenericTitle[1]={0};
+const uint16_t nrfDebugTitle[1]={0}; // Menu sentinel: compact monochrome title.
 void selectMenu(const uint16_t *const *titles, const uint16_t *const *icons, void (**actions)(), int count, bool root=false, const uint16_t* category=nullptr) {
     int index=0; bool dirty=true;
     JoystickNavigation navigation;
@@ -252,8 +258,10 @@ void selectMenu(const uint16_t *const *titles, const uint16_t *const *icons, voi
             screen.spr.unloadFont(); screen.spr.setSwapBytes(true); screen.spr.fillSprite(TFT_BLACK);
             screen.spr.pushImage(10,12,220,44,category?category:root?ui_m0:ui_menugroup);
             screen.spr.drawFastHLine(20,68,200,TFT_DARKGREY);
-            screen.spr.pushImage(10,92,220,44,titles[index]);
-            if(icons && icons[index]) screen.spr.pushImage(20,178,200,icons[index]==image_data_4_1_bilibili?181:200,icons[index]);
+            if(titles[index]==nrfGenericTitle) screen.spr.drawBitmap(10,94,NrfUi::generic,220,36,TFT_WHITE);
+            else if(titles[index]==nrfDebugTitle) screen.spr.drawBitmap(10,94,NrfUi::title,220,36,TFT_WHITE);
+            else screen.spr.pushImage(10,92,220,44,titles[index]);
+            if(icons && icons[index]) screen.spr.pushImage(20,178,200,200,icons[index]);
             else {
                 if(titles[index]==ui_module) {
                     screen.spr.fillRoundRect(78,208,84,136,12,0x0843);
@@ -265,6 +273,15 @@ void selectMenu(const uint16_t *const *titles, const uint16_t *const *icons, voi
                 } else if(titles[index]==ui_sendsettings) {
                     const int knob[]={87,150,112};
                     for(int i=0;i<3;i++){screen.spr.fillRoundRect(48,230+i*42,144,5,2,TFT_CYAN);screen.spr.fillCircle(knob[i],232+i*42,12,TFT_WHITE);screen.spr.fillCircle(knob[i],232+i*42,5,TFT_CYAN);}
+                } else if(titles[index]==nrfGenericTitle) {
+                    for(int i=0;i<3;i++){screen.spr.drawFastHLine(44,218+i*54,152,TFT_CYAN);screen.spr.fillCircle(75+i*38,218+i*54,13,TFT_WHITE);screen.spr.fillCircle(75+i*38,218+i*54,6,TFT_CYAN);}
+                } else if(titles[index]==nrfDebugTitle) {
+                    screen.spr.drawRoundRect(42,204,156,146,14,TFT_CYAN);
+                    screen.spr.drawRoundRect(48,210,144,134,10,TFT_CYAN);
+                    screen.spr.fillRect(106,350,28,17,TFT_WHITE);
+                    for(int j=0;j<4;j++) screen.spr.fillRect(70+j*27,312-j*20,15,16+j*20,j==3?TFT_GREEN:TFT_CYAN);
+                    screen.spr.drawCircle(120,244,17,TFT_WHITE);
+                    screen.spr.drawCircle(120,244,25,TFT_CYAN);
                 } else if(titles[index]==ui_car) {
                     screen.spr.fillRoundRect(80,255,80,52,10,TFT_CYAN);
                     for(int x: {65,157}) for(int y: {250,291}) screen.spr.fillRoundRect(x,y,18,28,4,TFT_WHITE);
@@ -289,15 +306,7 @@ void selectMenu(const uint16_t *const *titles, const uint16_t *const *icons, voi
     }
     screen.spr.loadFont(chinese_32); screen.spr.setTextDatum(TC_DATUM); screen.spr.fillSprite(TFT_BLACK);
 }
-void pendingPage(const uint16_t *title, bool protocol=false) {
-    screen.spr.unloadFont(); screen.spr.setSwapBytes(true); screen.spr.fillSprite(TFT_BLACK);
-    screen.spr.pushImage(10,12,220,44,title);screen.spr.drawFastHLine(20,66,200,TFT_DARKGREY);
-    screen.spr.pushImage(10,240,220,44,protocol?ui_protocol:ui_pending);
-    uiFooter(false); lcd_PushColors(0,0,240,536,(uint16_t*)screen.spr.getPointer());
-    while(true) { char cmd=Serial.available()?Serial.read():0; if(cmd=='S') uiScreenshot(); if(keys.x.pressed() || cmd=='Q') break; delay(10); }
-    screen.spr.loadFont(chinese_32); screen.spr.fillSprite(TFT_BLACK);
-}
-void car() { pendingPage(ui_car,true); }
+void car() { nrfControlPage(NrfControl::Car); }
 void menu() {
     const uint16_t *titles[]={ui_m1,ui_m2,ui_m3,ui_blehub,ui_m4};
     const uint16_t *icons[]={image_data_1nrf,image_data_2game,image_data_4info,image_data_5ble,image_data_6set};
@@ -305,19 +314,23 @@ void menu() {
     selectMenu(titles,icons,actions,5,true);
 }
 void NRFControl() {
-    const uint16_t *titles[]={ui_drone,ui_car}; const uint16_t *icons[]={image_data_1_4drone,nullptr};
-    void (*actions[])()={drone,car}; selectMenu(titles,icons,actions,2,false,ui_m1);
+    const uint16_t *titles[]={ui_drone,ui_car,nrfDebugTitle,nrfGenericTitle}; const uint16_t *icons[]={image_data_1_4drone,nullptr,nullptr,nullptr};
+    void (*actions[])()={drone,car,nrfDebug,nrfGeneric}; selectMenu(titles,icons,actions,4,false,ui_m1);
 }
+#include "NrfDebugPage.inc"
+#include "NrfGenericPage.inc"
+#include "NrfControlPage.inc"
+
 void localGame() {
     const uint16_t *titles[]={ui_m7,ui_m8,ui_m9,ui_m10,ui_m11,ui_sokoban};
     const uint16_t *icons[]={image_data_2_1snake,image_data_2_2brick,image_data_2_3plane,image_data_2_4num2048,image_data_2_5tetris,ui_sokoicon};
     void (*actions[])()={snake,brick,plane,num2048,tetris,sokoban}; selectMenu(titles,icons,actions,6,false,ui_m2);
 }
 void netInfo() {
-    const uint16_t *titles[]={ui_m12,ui_m13,ui_m14,ui_wifimanage};
-    // Bilibili icon has a different height; keep it out of the fixed-size renderer.
-    const uint16_t *icons[]={image_data_4_1_bilibili,image_data_4_2_weather,image_data_4_3_stock,ui_wifiicon};
-    void (*actions[])()={bilibili,weather,stock,wifiSettings}; selectMenu(titles,icons,actions,4,false,ui_m3);
+    const uint16_t *titles[]={ui_wifimanage};
+    const uint16_t *icons[]={ui_wifiicon};
+    void (*actions[])()={wifiSettings};
+    selectMenu(titles,icons,actions,1,false,ui_m3);
 }
 
 void wifiSettings(){
@@ -831,7 +844,7 @@ void joystickCalibration()
 
 
 // 1.4 无人机
-void drone() { pendingPage(ui_drone,true); }
+void drone() { nrfControlPage(NrfControl::Drone); }
 
 // 1.5 挖掘机
 
@@ -986,14 +999,8 @@ void tetris() {
 
 
 //---------------------------------------------4.网络信息------------------------------------------------------
-// 4.1 哔哩哔哩
-void bilibili() { pendingPage(ui_m12); }
 
-// 4.2 天气预报
-void weather() { pendingPage(ui_m13); }
 
-// 4.3 股票基金
-void stock() { pendingPage(ui_m14); }
 
 
 //---------------------------------------------5.蓝牙手柄------------------------------------------------------
