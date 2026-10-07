@@ -25,6 +25,9 @@
 #include "JoystickNavigation.h"
 #include "CubeGeometry.h"
 #include "ControlPacket.h"
+#include "LocalGames.h"
+#include "PuzzleGames.h"
+#include <Preferences.h>
 #include "generated_ui_text.h" // BLE 页面完整中文位图字形
 
 
@@ -837,19 +840,101 @@ void drone() { pendingPage(ui_drone,true); }
 
 //----------------------------------------------2.本机游戏-----------------------------------------------------
 // 2.1 贪吃蛇
-void snake() { pendingPage(ui_m7); }
+void snake() {
+    LocalGames::Snake game;game.reset();UiRefresh refresh;bool playing=false,paused=false;uint32_t tick=millis(),paint=0;
+    Preferences prefs;prefs.begin("localgames",false);int best=prefs.getInt("snake",0);
+    screen.spr.unloadFont();screen.spr.setSwapBytes(true);screen.spr.setTextDatum(TC_DATUM);
+    while(true){keys.kvs_update();char c=Serial.available()?Serial.read():0;if(keys.x.pressed()||c=='Q')break;if(c=='S')uiScreenshot();
+        if(keys.o.pressed()||c=='E'){if(game.over){game.reset();paused=false;}playing=true;tick=millis();}
+        if((keys.a.pressed()||c=='A')&&playing&&!game.over){paused=!paused;tick=millis();}
+        if(keys.up.pressed()||c=='U'||keys.kvs.LY<-55)game.turn(0);else if(keys.right.pressed()||c=='R'||keys.kvs.LX>55)game.turn(1);else if(keys.down.pressed()||c=='D'||keys.kvs.LY>55)game.turn(2);else if(keys.left.pressed()||c=='L'||keys.kvs.LX<-55)game.turn(3);
+        if(playing&&!paused&&!game.over&&millis()-tick>=uint32_t(max(70,220-game.score/5))){tick=millis();game.step(esp_random());if(game.score>best){best=game.score;if(game.over)prefs.putInt("snake",best);}}
+        if(c=='T')Serial.printf("[SNAKE] score=%d length=%d over=%d paused=%d playing=%d\n",game.score,game.length,game.over,paused,playing);
+        if(millis()-paint>=20){paint=millis();screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,4,220,44,ui_m7);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("S "+String(game.score)+"  BEST "+String(best),120,57,4);
+            screen.spr.drawRect(10,98,220,340,TFT_DARKGREY);screen.spr.fillRoundRect(12+game.food.x*12,100+game.food.y*12,10,10,3,0xFD20);
+            for(int i=game.length-1;i>=0;i--)screen.spr.fillRoundRect(12+game.body[i].x*12,100+game.body[i].y*12,10,10,2,i==0?TFT_CYAN:TFT_GREEN);
+            if(!playing||paused||game.over){screen.spr.fillRect(10,244,220,44,TFT_BLACK);screen.spr.pushImage(10,244,220,44,game.over?(game.won?ui_gamewin:ui_gameover):paused?ui_gamepause:ui_gamestart);}
+            screen.spr.pushImage(10,442,220,44,ui_snakekeys);screen.spr.pushImage(10,488,220,44,ui_gameexit);refresh.push((uint16_t*)screen.spr.getPointer());}
+        delay(2);
+    }prefs.putInt("snake",best);prefs.end();screen.spr.loadFont(chinese_32);
+}
 
 // 2.2 打砖块
-void brick() { pendingPage(ui_m8); }
+void brick() {
+    LocalGames::Breakout game;game.reset();UiRefresh refresh;bool paused=false;uint32_t tick=millis(),paint=0;Preferences prefs;prefs.begin("localgames",false);int best=prefs.getInt("brick",0);
+    screen.spr.unloadFont();screen.spr.setSwapBytes(true);screen.spr.setTextDatum(TC_DATUM);
+    while(true){keys.kvs_update();char c=Serial.available()?Serial.read():0;if(keys.x.pressed()||c=='Q')break;if(c=='S')uiScreenshot();
+        uint32_t now=millis();float dt=min(uint32_t(now-tick),uint32_t(40))*.001f;tick=now;
+        if(keys.o.pressed()||c=='E'){if(game.over){game.reset();paused=false;}game.launched=true;}
+        if((keys.a.pressed()||c=='A')&&!game.over)paused=!paused;
+        if(!paused&&!game.over){float axis=keys.kvs.LX/100.0f;if(!keys.kvs.left)axis=-1;if(!keys.kvs.right)axis=1;if(c=='L')game.move(game.paddle-20);if(c=='R')game.move(game.paddle+20);game.move(game.paddle+axis*260*dt);int steps=max(1,int(ceilf(dt/.008f)));for(int i=0;i<steps;i++)game.step(dt/steps);best=max(best,game.score);}
+        if(c=='T')Serial.printf("[BRICK] score=%d lives=%d level=%d over=%d paused=%d launched=%d\n",game.score,game.lives,game.level,game.over,paused,game.launched);
+        if(now-paint>=20){paint=now;screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,4,220,44,ui_m8);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("S "+String(game.score)+" L "+String(game.level)+" HP "+String(game.lives),120,57,4);
+            screen.spr.drawRect(10,98,220,340,TFT_DARKGREY);for(int i=0;i<40;i++)if(game.bricks[i])screen.spr.fillRoundRect(16+(i%8)*26,118+(i/8)*20,23,15,2,game.bricks[i]>1?TFT_ORANGE:i/8%2?TFT_GREEN:TFT_CYAN);
+            screen.spr.fillRoundRect(int(game.paddle)-26,410,52,7,3,TFT_WHITE);screen.spr.fillCircle(lroundf(game.x),lroundf(game.y),4,TFT_CYAN);
+            if(paused||game.over||!game.launched){screen.spr.fillRect(10,260,220,44,TFT_BLACK);screen.spr.pushImage(10,260,220,44,game.over?(game.won?ui_gamewin:ui_gameover):paused?ui_gamepause:ui_gamestart);}
+            screen.spr.pushImage(10,442,220,44,ui_brickkeys);screen.spr.pushImage(10,488,220,44,ui_gameexit);refresh.push((uint16_t*)screen.spr.getPointer());}delay(2);
+    }prefs.putInt("brick",best);prefs.end();screen.spr.loadFont(chinese_32);
+}
 
 // 2.3 飞机大战
-void plane() { pendingPage(ui_m9); }
+void plane() {
+    LocalGames::Plane game;UiRefresh refresh;bool playing=false,paused=false;uint32_t tick=millis(),paint=0;Preferences prefs;prefs.begin("localgames",false);int best=prefs.getInt("plane",0);
+    screen.spr.unloadFont();screen.spr.setSwapBytes(true);screen.spr.setTextDatum(TC_DATUM);
+    while(true){keys.kvs_update();char c=Serial.available()?Serial.read():0;if(keys.x.pressed()||c=='Q')break;if(c=='S')uiScreenshot();
+        uint32_t now=millis();float dt=min(uint32_t(now-tick),uint32_t(40))*.001f;tick=now;
+        if(keys.o.pressed()||c=='E'){if(game.over){game.reset();paused=false;}playing=true;}
+        if((keys.a.pressed()||c=='A')&&playing&&!game.over)paused=!paused;
+        if((keys.b.pressed()||c=='B')&&playing&&!paused)game.bomb();
+        if(playing&&!paused&&!game.over){float ax=keys.kvs.LX/100.0f,ay=keys.kvs.LY/100.0f;if(!keys.kvs.left||c=='L')ax=-1;if(!keys.kvs.right||c=='R')ax=1;if(!keys.kvs.up||c=='U')ay=-1;if(!keys.kvs.down||c=='D')ay=1;int n=max(1,int(ceilf(dt/.008f)));for(int i=0;i<n;i++)game.step(dt/n,ax,ay,esp_random());best=max(best,game.score);}
+        if(c=='T')Serial.printf("[PLANE] score=%d lives=%d bombs=%d level=%d over=%d paused=%d playing=%d\n",game.score,game.lives,game.bombs,game.level,game.over,paused,playing);
+        if(now-paint>=20){paint=now;screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,4,220,44,ui_m9);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("S "+String(game.score)+" HP "+String(game.lives)+" B "+String(game.bombs),120,57,4);
+            for(int i=0;i<20;i++)screen.spr.drawPixel(16+(i*47)%208,103+(i*79+int(now/35))%330,TFT_DARKGREY);
+            for(auto& b:game.shots)if(b.active)screen.spr.fillRect(int(b.x)-1,int(b.y)-4,3,8,TFT_CYAN);
+            for(auto& b:game.hostile)if(b.active)screen.spr.fillCircle(int(b.x),int(b.y),3,TFT_ORANGE);
+            for(auto& e:game.enemies)if(e.hp){int x=int(e.x),y=int(e.y);uint16_t col=e.hp>1?TFT_ORANGE:TFT_RED;screen.spr.fillTriangle(x,y+12,x-12,y-6,x+12,y-6,col);screen.spr.fillRect(x-3,y-12,6,20,col);}
+            if(game.invulnerable<=0||(now/100)%2){int x=int(game.x),y=int(game.y);screen.spr.fillTriangle(x,y-14,x-13,y+10,x+13,y+10,TFT_CYAN);screen.spr.fillRect(x-3,y-8,6,22,TFT_WHITE);}
+            if(!playing||paused||game.over){screen.spr.fillRect(10,244,220,44,TFT_BLACK);screen.spr.pushImage(10,244,220,44,game.over?ui_gameover:paused?ui_gamepause:ui_gamestart);screen.spr.setTextColor(TFT_GREEN,TFT_BLACK);screen.spr.drawString("BEST "+String(best),120,300,4);}
+            screen.spr.drawRect(10,98,220,340,TFT_DARKGREY);screen.spr.pushImage(10,442,220,44,ui_planekeys);screen.spr.pushImage(10,488,220,44,ui_gameexit);refresh.push((uint16_t*)screen.spr.getPointer());}delay(2);
+    }prefs.putInt("plane",best);prefs.end();screen.spr.loadFont(chinese_32);
+}
 
 // 2.4 2048
-void num2048() { pendingPage(ui_m10); }
+void num2048() {
+    LocalGames::Merge2048 game;game.reset(esp_random());UiRefresh refresh;JoystickNavigation navigation;bool dirty=true;Preferences prefs;prefs.begin("localgames",false);int best=prefs.getInt("2048",0);
+    screen.spr.unloadFont();screen.spr.setSwapBytes(true);screen.spr.setTextDatum(TC_DATUM);
+    while(true){keys.kvs_update();char c=Serial.available()?Serial.read():0;if(keys.x.pressed()||c=='Q')break;if(c=='S')uiScreenshot();
+        auto nav=navigation.update(keys.kvs.LX,keys.kvs.LY,millis());int d=-1;
+        if(keys.up.pressed()||c=='U'||nav==JoystickNavigation::Up)d=0;if(keys.right.pressed()||c=='R'||nav==JoystickNavigation::Right)d=1;if(keys.down.pressed()||c=='D'||nav==JoystickNavigation::Down)d=2;if(keys.left.pressed()||c=='L'||nav==JoystickNavigation::Left)d=3;
+        if(d>=0){game.move(d,esp_random());dirty=true;}if(keys.a.pressed()||c=='A'){game.undo();dirty=true;}if(keys.o.pressed()||c=='E'){game.reset(esp_random());dirty=true;navigation.reset();}best=max(best,game.score);
+        if(c=='T')Serial.printf("[2048] score=%d over=%d undo=%d\n",game.score,game.over,game.undoReady);
+        if(dirty){dirty=false;screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,4,220,44,ui_m10);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("S "+String(game.score),120,62,4);screen.spr.drawString("BEST "+String(best),120,99,4);
+            for(int i=0;i<16;i++){int x=14+(i%4)*53,y=150+(i/4)*53;uint32_t v=game.cells[i];uint16_t col=v>=2048?0xB560:v>=128?0x8208:v>=16?0x3208:v?0x1928:0x1082;screen.spr.fillRoundRect(x,y,49,49,5,col);if(v){screen.spr.setTextColor(v>=2048?TFT_YELLOW:TFT_WHITE,col);screen.spr.drawString(String(v),x+24,y+13,v>=1024?2:4);}}
+            if(game.over)screen.spr.pushImage(10,374,220,44,ui_gameover);else screen.spr.pushImage(10,374,220,44,ui_snakekeys);
+            screen.spr.pushImage(10,434,220,44,ui_mergehelp);screen.spr.pushImage(10,488,220,44,ui_exit);refresh.push((uint16_t*)screen.spr.getPointer());}delay(2);
+    }prefs.putInt("2048",best);prefs.end();screen.spr.loadFont(chinese_32);
+}
 
 // 2.5 俄罗斯方块
-void tetris() { pendingPage(ui_m11); }
+void tetris() {
+    LocalGames::Tetris game;game.reset(esp_random());UiRefresh refresh;JoystickNavigation navigation;bool playing=false,paused=false;uint32_t lastFall=millis(),paint=0;Preferences prefs;prefs.begin("localgames",false);int best=prefs.getInt("tetris",0);
+    screen.spr.unloadFont();screen.spr.setSwapBytes(true);screen.spr.setTextDatum(TC_DATUM);const uint16_t colors[]={TFT_CYAN,TFT_YELLOW,TFT_VIOLET,TFT_GREEN,TFT_RED,TFT_BLUE,TFT_ORANGE};
+    while(true){keys.kvs_update();char c=Serial.available()?Serial.read():0;if(keys.x.pressed()||c=='Q')break;if(c=='S')uiScreenshot();
+        if(keys.o.pressed()||c=='E'){if(!playing||game.over){if(game.over)game.reset(esp_random());playing=true;paused=false;lastFall=millis();}else if(!paused)game.rotate();}
+        if((keys.a.pressed()||c=='A')&&playing&&!game.over){paused=!paused;lastFall=millis();}
+        int nx=!keys.kvs.left?-100:!keys.kvs.right?100:keys.kvs.LX;auto nav=navigation.update(nx,keys.kvs.LY,millis());
+        if(playing&&!paused&&!game.over){if(keys.left.pressed()||c=='L'||nav==JoystickNavigation::Left)game.move(-1);if(keys.right.pressed()||c=='R'||nav==JoystickNavigation::Right)game.move(1);if(keys.up.pressed()||c=='U'||nav==JoystickNavigation::Up)game.rotate();if(keys.b.pressed()||c=='B')game.drop(esp_random());
+            uint32_t interval=(!keys.kvs.down||keys.kvs.LY>55)?45:max(90,650-game.lines/10*50);if(c=='D'||millis()-lastFall>=interval){lastFall=millis();game.down(esp_random());}best=max(best,game.score);}
+        if(c=='T')Serial.printf("[TETRIS] score=%d lines=%d over=%d paused=%d playing=%d\n",game.score,game.lines,game.over,paused,playing);
+        if(millis()-paint>=20){paint=millis();screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,4,220,44,ui_m11);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("S "+String(game.score)+" ROW "+String(game.lines),120,58,4);
+            auto cell=[&](int x,int y,int type,bool outline){if(y<0||y>=20)return;int px=12+x*16,py=100+y*16;if(outline)screen.spr.drawRect(px+1,py+1,14,14,TFT_DARKGREY);else screen.spr.fillRoundRect(px+1,py+1,14,14,2,colors[type]);};
+            for(int y=0;y<20;y++)for(int x=0;x<10;x++)if(game.board[y][x])cell(x,y,game.board[y][x]-1,false);
+            int ghost=game.ghost();for(int y=0;y<4;y++)for(int x=0;x<4;x++)if(game.cell(game.piece,game.rotation,x,y)){cell(game.x+x,ghost+y,game.piece,true);cell(game.x+x,game.y+y,game.piece,false);}
+            screen.spr.drawRect(10,98,164,324,TFT_DARKGREY);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("NEXT",204,104,2);for(int y=0;y<4;y++)for(int x=0;x<4;x++)if(game.cell(game.next,0,x,y))screen.spr.fillRect(181+x*12,137+y*12,10,10,colors[game.next]);
+            if(!playing||paused||game.over){screen.spr.fillRect(10,244,220,44,TFT_BLACK);screen.spr.pushImage(10,244,220,44,game.over?ui_gameover:paused?ui_gamepause:ui_gamestart);}
+            screen.spr.pushImage(10,434,220,44,ui_tetrishelp);screen.spr.pushImage(10,488,220,44,ui_gameexit);refresh.push((uint16_t*)screen.spr.getPointer());}delay(2);
+    }prefs.putInt("tetris",best);prefs.end();screen.spr.loadFont(chinese_32);
+}
 
 
 //---------------------------------------------------------------------------------------------------
