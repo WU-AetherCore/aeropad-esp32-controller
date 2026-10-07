@@ -50,6 +50,8 @@ assets += [('menugroup','功能菜单',30,(240,245,255))]
 assets += [(n,t,24,(220,228,240)) for n,t in [('cube_roll','横滚'),('cube_pitch','俯仰'),('cube_yaw','航向')]]
 assets=[(n,shorter.get(n,t),30 if n in menu_titles else 28 if n in status_titles else 24,c) for n,t,z,c in assets]
 manifest={}
+assets += [('sokoban','推箱子',30,(240,245,255)),('sokostats','关卡    步数    到位',24,(220,228,240)),('sokowin','关卡完成',28,(64,240,128)),('sokonext','即将进入下一关',24,(220,228,240)),('sokostuck','箱子卡角 · A撤销',24,(220,228,240))]
+assets += [('sokokeys','B选关 · X返回',24,(220,228,240))]
 assets += [('mergehelp','A撤销 · O重开',24,(220,228,240)),('tetrishelp','O旋转·B快速落下',24,(220,228,240))]
 assets += [('planekeys','移动射击·B炸弹',24,(220,228,240))]
 assets += [(n,t,24,(220,228,240)) for n,t in [('gamepause','已暂停 · A继续'),('gameover','游戏结束 · O重开'),('gamewin','挑战完成 · O重开'),('gamestart','按 O 开始游戏'),('snakekeys','方向键或左摇杆'),('gameexit','A暂停 · X退出'),('brickkeys','左右移动 · O发球')]]
@@ -104,6 +106,15 @@ for name in ['monitoricon','calicon']:
     out += [f'const uint16_t ui_{name}[] PROGMEM = {{']
     out += [','.join(f'0x{v:04x}' for v in vals[i:i+16])+',' for i in range(0,len(vals),16)]
     out+=['};'];im.save(root/f'logs/ui_{name}.png')
+im=Image.new('RGB',(200,200));d=ImageDraw.Draw(im)
+d.rounded_rectangle((14,14,186,186),radius=24,outline=(0,220,255),width=6)
+d.rounded_rectangle((52,40,148,136),radius=9,fill=(225,162,65),outline=(255,216,120),width=5)
+d.line((64,52,136,124),fill=(126,78,31),width=8);d.line((136,52,64,124),fill=(126,78,31),width=8)
+d.ellipse((84,148,116,180),fill=(64,240,128));d.line((100,158,100,169),fill=(15,35,31),width=4)
+vals=[((r>>3)<<11)|((g>>2)<<5)|(b>>3) for r,g,b in im.getdata()]
+out += ['const uint16_t ui_sokoicon[] PROGMEM = {']
+out += [','.join(f'0x{v:04x}' for v in vals[i:i+16])+',' for i in range(0,len(vals),16)]
+out += ['};'];im.save(root/'logs/ui_sokoicon.png')
 (root/'src/generated_ui_text.h').write_text('\n'.join(out))
 
 (root/'logs/ui_typography.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2),encoding='utf-8')

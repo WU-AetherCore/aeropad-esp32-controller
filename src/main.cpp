@@ -27,6 +27,7 @@
 #include "ControlPacket.h"
 #include "LocalGames.h"
 #include "PuzzleGames.h"
+#include "Sokoban.h"
 #include <Preferences.h>
 #include "generated_ui_text.h" // BLE 页面完整中文位图字形
 
@@ -78,7 +79,7 @@ Buzzer buzzer;   // 蜂鸣器
 //-------------------------------------------------------------------------------------------------------------
 void menu();			// 0.主菜单     ->   1.NRF遥控  2.本机游戏    4.网络信息  5.蓝牙手柄  6.系统设置
 void NRFControl();		// 1.NRF遥控    ->   无人机 / 四驱车
-void localGame();		// 2.本机游戏   ->   1.贪吃蛇 2.打砖块 3.飞机大战 4.2048 5.俄罗斯方块
+void localGame();		// 贪吃蛇、打砖块、飞机大战、2048、俄罗斯方块、推箱子
 void netInfo();			// 4.网络信息   ->   1.哔哩哔哩 2.天气预报 3.股票基金
 void wifiSettings();                 // 4.4 WiFi 管理：热点、网页配网与设备数据
 void deviceMonitor();                // 6.4 设备监测：内存、硬件、网络和蓝牙统计
@@ -103,6 +104,7 @@ void brick();			// 2.2 打砖块
 void plane();			// 2.3 飞机大战
 void num2048();			// 2.4 2048
 void tetris();			// 2.5 俄罗斯方块
+void sokoban();             // 2.6 推箱子：十关挑战、连续撤销、庆祝与自动下一关
 
 //----------------------------------------------------------------------------------------------------
 
@@ -307,9 +309,9 @@ void NRFControl() {
     void (*actions[])()={drone,car}; selectMenu(titles,icons,actions,2,false,ui_m1);
 }
 void localGame() {
-    const uint16_t *titles[]={ui_m7,ui_m8,ui_m9,ui_m10,ui_m11};
-    const uint16_t *icons[]={image_data_2_1snake,image_data_2_2brick,image_data_2_3plane,image_data_2_4num2048,image_data_2_5tetris};
-    void (*actions[])()={snake,brick,plane,num2048,tetris}; selectMenu(titles,icons,actions,5,false,ui_m2);
+    const uint16_t *titles[]={ui_m7,ui_m8,ui_m9,ui_m10,ui_m11,ui_sokoban};
+    const uint16_t *icons[]={image_data_2_1snake,image_data_2_2brick,image_data_2_3plane,image_data_2_4num2048,image_data_2_5tetris,ui_sokoicon};
+    void (*actions[])()={snake,brick,plane,num2048,tetris,sokoban}; selectMenu(titles,icons,actions,6,false,ui_m2);
 }
 void netInfo() {
     const uint16_t *titles[]={ui_m12,ui_m13,ui_m14,ui_wifimanage};
@@ -916,6 +918,47 @@ void num2048() {
 }
 
 // 2.5 俄罗斯方块
+void sokoban() {
+    LocalGames::Sokoban game;LocalGames::SokobanCelebration celebration;Preferences prefs;prefs.begin("sokoban",false);
+    // The original five tutorial maps do not represent progress in this new pack.
+    if(prefs.getUChar("version",0)!=2){prefs.putUChar("level",0);prefs.putUChar("selected",0);prefs.putUChar("version",2);}
+    int unlocked=min(LocalGames::Sokoban::COUNT-1,(int)prefs.getUChar("level",0));game.reset(min(unlocked,(int)prefs.getUChar("selected",0)));
+    UiRefresh refresh;JoystickNavigation navigation;bool dirty=true,selecting=true;uint32_t paint=0;
+    screen.spr.unloadFont();screen.spr.setSwapBytes(true);screen.spr.setTextDatum(TC_DATUM);
+    while(true){keys.kvs_update();char c=Serial.available()?Serial.read():0;if(keys.x.pressed()||c=='Q')break;if(c=='S')uiScreenshot();
+        auto nav=navigation.update(keys.kvs.LX,keys.kvs.LY,millis());int d=-1;
+        if(keys.up.pressed()||c=='U'||nav==JoystickNavigation::Up)d=0;if(keys.right.pressed()||c=='R'||nav==JoystickNavigation::Right)d=1;if(keys.down.pressed()||c=='D'||nav==JoystickNavigation::Down)d=2;if(keys.left.pressed()||c=='L'||nav==JoystickNavigation::Left)d=3;
+        if(selecting&&d>=0){game.reset((game.level+(d==0||d==3?-1:1)+unlocked+1)%(unlocked+1));dirty=true;}
+        if(d>=0&&!selecting&&!celebration.active&&game.move(d)){dirty=true;if(game.won()){celebration.begin(millis());if(game.level+1<game.COUNT&&game.level+1>unlocked){unlocked=game.level+1;prefs.putUChar("level",unlocked);}}}
+        if((keys.a.pressed()||c=='A')&&!selecting){game.undo();celebration.cancel();dirty=true;}
+        if(keys.o.pressed()||c=='E'){game.reset(game.won()&&game.level==game.COUNT-1?0:game.level);selecting=false;prefs.putUChar("selected",game.level);celebration.cancel();navigation.reset();dirty=true;}
+        if(keys.b.pressed()||c=='B'){game.reset(game.level);selecting=true;celebration.cancel();navigation.reset();dirty=true;}
+        if(celebration.due(millis())&&game.level+1<game.COUNT){game.reset(game.level+1);prefs.putUChar("selected",game.level);celebration.cancel();navigation.reset();dirty=true;}
+        if(c=='T')Serial.printf("[SOKO] level=%d steps=%d pushes=%d placed=%d won=%d celebrating=%d history=%d selecting=%d unlocked=%d\n",game.level+1,game.steps,game.pushes,game.placed(),game.won(),celebration.active,game.historyCount,selecting,unlocked+1);
+        if(celebration.active&&millis()-paint>=20){dirty=true;paint=millis();}
+        if(dirty){dirty=false;screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,4,220,44,ui_sokoban);screen.spr.pushImage(10,55,220,44,ui_sokostats);
+            screen.spr.setTextColor(TFT_CYAN,TFT_BLACK);screen.spr.drawString(String(game.level+1)+"/10",45,101,4);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString(String(game.steps),120,101,4);screen.spr.setTextColor(TFT_GREEN,TFT_BLACK);screen.spr.drawString(String(game.placed())+"/"+String(game.total()),195,101,4);
+            for(int i=0;i<game.COUNT;i++)screen.spr.fillCircle(48+16*i,138,i==game.level?4:2,i==game.level?TFT_WHITE:i<=unlocked?TFT_CYAN:TFT_DARKGREY);
+            if(!celebration.active){for(int i=0;i<game.N;i++){int x=16+(i%game.W)*26,y=151+(i/game.W)*26;screen.spr.fillRoundRect(x,y,24,24,3,game.terrain[i]=='#'?0x29AB:0x1082);if(game.terrain[i]=='#'){screen.spr.drawFastHLine(x+3,y+6,18,0x426F);continue;}
+                if(game.terrain[i]=='.'){screen.spr.drawCircle(x+12,y+12,7,TFT_GREEN);screen.spr.fillCircle(x+12,y+12,2,TFT_GREEN);}
+                if(game.boxes[i]){uint16_t color=game.terrain[i]=='.'?TFT_GREEN:TFT_ORANGE;screen.spr.fillRoundRect(x+2,y+2,20,20,3,color);screen.spr.drawRect(x+4,y+4,16,16,0x6204);screen.spr.drawLine(x+5,y+5,x+18,y+18,0x6204);screen.spr.drawLine(x+18,y+5,x+5,y+18,0x6204);if(game.corner(i))screen.spr.drawRoundRect(x+1,y+1,22,22,3,TFT_RED);}
+                if(i==game.player){screen.spr.fillCircle(x+12,y+12,9,TFT_CYAN);screen.spr.fillCircle(x+9,y+9,2,TFT_BLACK);screen.spr.fillCircle(x+15,y+9,2,TFT_BLACK);screen.spr.drawFastHLine(x+8,y+16,8,TFT_BLACK);}}
+                screen.spr.pushImage(10,375,220,44,selecting?ui_switch:game.stuck()?ui_sokostuck:ui_snakekeys);
+            }else{
+                uint32_t elapsed=millis()-celebration.started;const uint16_t colors[]={TFT_CYAN,TFT_YELLOW,TFT_GREEN,TFT_MAGENTA,TFT_ORANGE};
+                // Non-blocking 50Hz confetti, a pulsing halo and a vector trophy.
+                for(int i=0;i<32;i++){int x=14+(i*53+elapsed/(9+i%5))%210,y=145+(i*37+elapsed/(5+i%7))%220;screen.spr.fillRect(x,y,3+(i%3),5,colors[i%5]);}
+                screen.spr.drawCircle(120,213,52+(elapsed/100)%8,0x2945);screen.spr.drawCircle(120,213,46,TFT_YELLOW);
+                screen.spr.fillRoundRect(95,179,50,48,9,TFT_YELLOW);screen.spr.drawRoundRect(80,183,80,32,10,TFT_YELLOW);screen.spr.fillRect(116,223,8,23,TFT_YELLOW);screen.spr.fillRoundRect(98,245,44,8,3,TFT_YELLOW);
+                screen.spr.pushImage(10,275,220,44,game.level+1==game.COUNT?ui_gamewin:ui_sokowin);
+                if(game.level+1<game.COUNT){screen.spr.pushImage(10,326,220,44,ui_sokonext);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString(String((LocalGames::SokobanCelebration::Duration-elapsed+999)/1000),120,382,4);}
+            }
+            screen.spr.pushImage(10,434,220,44,selecting?ui_enter:ui_mergehelp);
+            if(selecting){screen.spr.setTextColor(TFT_CYAN,TFT_BLACK);screen.spr.drawString("PUSH "+String(LocalGames::sokobanMinimumPushes[game.level])+"+",120,496,4);}else screen.spr.pushImage(10,488,220,44,ui_sokokeys);
+            refresh.push((uint16_t*)screen.spr.getPointer());}delay(2);
+    }prefs.end();screen.spr.loadFont(chinese_32);
+}
+
 void tetris() {
     LocalGames::Tetris game;game.reset(esp_random());UiRefresh refresh;JoystickNavigation navigation;bool playing=false,paused=false;uint32_t lastFall=millis(),paint=0;Preferences prefs;prefs.begin("localgames",false);int best=prefs.getInt("tetris",0);
     screen.spr.unloadFont();screen.spr.setSwapBytes(true);screen.spr.setTextDatum(TC_DATUM);const uint16_t colors[]={TFT_CYAN,TFT_YELLOW,TFT_VIOLET,TFT_GREEN,TFT_RED,TFT_BLUE,TFT_ORANGE};

@@ -1,0 +1,177 @@
+{
+  "width": 8,
+  "height": 8,
+  "method": "Reverse push BFS, all solved player components",
+  "levels": [
+    {
+      "level": 1,
+      "rows": [
+        "########",
+        "# .#@  #",
+        "#  #$  #",
+        "##$#   #",
+        "#     ##",
+        "# #    #",
+        "# .   ##",
+        "########"
+      ],
+      "minimum_pushes": 8,
+      "solution": "DDDRDLULDRDLUULUU",
+      "boxes": 2,
+      "states": 41
+    },
+    {
+      "level": 2,
+      "rows": [
+        "########",
+        "##@ # ##",
+        "# # #  #",
+        "# $  $ #",
+        "#.     #",
+        "#      #",
+        "#     .#",
+        "########"
+      ],
+      "minimum_pushes": 12,
+      "solution": "RDDRRURDDDULLLLLURRRDRRUULDRDLLLL",
+      "boxes": 2,
+      "states": 279
+    },
+    {
+      "level": 3,
+      "rows": [
+        "########",
+        "#  #@..#",
+        "#   #  #",
+        "# $ $  #",
+        "## $   #",
+        "# #  . #",
+        "#   #  #",
+        "########"
+      ],
+      "minimum_pushes": 16,
+      "solution": "RDDDDLLULULUURDRDRLULLDRDRRURDLLLURRDRRUDLURUDLU",
+      "boxes": 3,
+      "states": 855
+    },
+    {
+      "level": 4,
+      "rows": [
+        "########",
+        "##+ ..##",
+        "#     ##",
+        "# #    #",
+        "# $  $ #",
+        "# $## ##",
+        "#      #",
+        "########"
+      ],
+      "minimum_pushes": 20,
+      "solution": "DLDDRRLLDDRRRRUURULULLDDRLLLDDRULURRUURRDLULLLDDRDDRRRUURULULLLLDDRRRLLDDRRRUUUDLLUURULDDDRURUDLU",
+      "boxes": 3,
+      "states": 615
+    },
+    {
+      "level": 5,
+      "rows": [
+        "########",
+        "#   #@ #",
+        "##  $ .#",
+        "# . #$ #",
+        "#   # .#",
+        "#  $#  #",
+        "#   #  #",
+        "########"
+      ],
+      "minimum_pushes": 25,
+      "solution": "DLLULDRDDLLURDRULURRRURDDDUULLLDDLDDRULUUURRRRDDLDDRULUURULLLULDDLDDRRUULURDDDLURUURR",
+      "boxes": 3,
+      "states": 554
+    },
+    {
+      "level": 6,
+      "rows": [
+        "########",
+        "##@.  ##",
+        "##*#   #",
+        "#  #$ ##",
+        "#  $ # #",
+        "##.    #",
+        "#   $. #",
+        "########"
+      ],
+      "minimum_pushes": 30,
+      "solution": "RRDDDUUULLDDDUUURRDDDLDDRUUURUULLLDDLDRRLUUURRRDDLDLDDLURURURUULLLDDLDRDRDRURRDLLULLUUUURRRDDLDURUULLLDDDDRRDRRULLUURUULLLDDDDDRRUULRDDLLUURRDLULUDRRUURUL",
+      "boxes": 4,
+      "states": 2141
+    },
+    {
+      "level": 7,
+      "rows": [
+        "########",
+        "#...  ##",
+        "#.  $  #",
+        "#.#   ##",
+        "# $  $##",
+        "# ##$$@#",
+        "#  #   #",
+        "########"
+      ],
+      "minimum_pushes": 36,
+      "solution": "DLLUULUUURRDLLDDRUUDDDDRRULDLUULUURRDDUULLULLDDDRRRLUULULDRRDDRURUULLDDRUDDDDRRULDLUULUURRDDLDDRRULULURDDDLUURUULLDDRULULRULRDDRRUULLDDRURUL",
+      "boxes": 5,
+      "states": 9637
+    },
+    {
+      "level": 8,
+      "rows": [
+        "########",
+        "##  ..##",
+        "#@$ $..#",
+        "#  $#..#",
+        "#   $ $#",
+        "## $#  #",
+        "##   ###",
+        "########"
+      ],
+      "minimum_pushes": 43,
+      "solution": "DRDRUURRDDLLULLURURLDDRDRRUULLDLLDRRLDDRULUURUULDLDDRDRULLUURDDUURRRDDLLUDRRUULLDLLDRRDDLUURUURRDDLRUULLDDRRDRULUUULDLDDLDDRULULUURRRURDLLLLDDRDRULULURRRLLDDRULUURRLLDDRULUR",
+      "boxes": 6,
+      "states": 26710
+    },
+    {
+      "level": 9,
+      "rows": [
+        "########",
+        "#@  *.##",
+        "#  *$.*#",
+        "#   #..#",
+        "# $$$  #",
+        "##  #  #",
+        "##   ###",
+        "########"
+      ],
+      "minimum_pushes": 51,
+      "solution": "RDDRDRRUUULLDURRDLLRRDDLLULLUURDRLURDDDRRUULLULLDDDRRLDDRUULLUUURRDRRDDLLRRUULLDUULLDDRDRLULUURDRRRULLDLLDDRRUDLLUURRDDLURDDDLUURUUURRDDDLRUUULLDDDRRDRULLLUURURDLLDDLDDRUULLUURRRLLLDDRRUDLULUURRRLLLDDRULURR",
+      "boxes": 7,
+      "states": 43559
+    },
+    {
+      "level": 10,
+      "rows": [
+        "########",
+        "#   *.##",
+        "# $*$.*#",
+        "#   #..#",
+        "#    $$#",
+        "## $#+ #",
+        "##   ###",
+        "########"
+      ],
+      "minimum_pushes": 53,
+      "solution": "RULUUULLDRURDDDLLULLUURDRLURDDDRRUULLULLDDDRRLDDRUULLUUURRDRRDDLLRRUULLDUULLDDRDRLULUURDRRRULLDLLDDRRUDLLUURRDDLURDDDLUURUUURRDDDLRUUULLDDDUURURDLLDDLDDRUULLUURRRLLLDDRRUDLULUURRRLLLDDRULURR",
+      "boxes": 8,
+      "states": 15478
+    }
+  ]
+}
