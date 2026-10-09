@@ -62,7 +62,7 @@ void nrfDebug(){
    }
   }
   if(c=='T')Serial.printf("[NRFDBG] present=%d running=%d page=%d channel=%d rate=%d power=%d role=%d period=%d mode=%d TX=%lu ACK=%lu RX=%lu BAD=%lu\n",present,running,page,channel,rate,power,role,period,reference,(unsigned long)tx,(unsigned long)ack,(unsigned long)rx,(unsigned long)bad);
-  if(!asyncTx.busy()&&(dirty||now-lastPaint>=100)){dirty=false;lastPaint=now;screen.spr.resetViewport();screen.spr.fillSprite(TFT_BLACK);label(NrfUi::title,8);screen.spr.drawFastHLine(20,55,200,TFT_WHITE);
+  if(!asyncTx.busy()&&(dirty||now-lastPaint>=100)){dirty=false;lastPaint=now;screen.spr.resetViewport();screen.spr.fillSprite(TFT_BLACK);if(!UiNames::draw(screen.spr,"nrfdebug",10,8,220,false))label(NrfUi::title,8);screen.spr.drawFastHLine(20,55,200,TFT_WHITE);
    label(present?NrfUi::present:NrfUi::absent,62,present?TFT_GREEN:TFT_YELLOW);
    if(page==0){
     screen.spr.drawRoundRect(10,144,220,78,8,TFT_WHITE);screen.spr.drawRoundRect(10,225,220,78,8,TFT_WHITE);screen.spr.drawRoundRect(10,302,220,78,8,TFT_WHITE);
@@ -91,7 +91,7 @@ void nrfDebug(){
     label(NrfUi::remote,227,TFT_WHITE);if(haveRx){value("LX "+String(int8_t(received[12]))+" LY "+String(int8_t(received[13])),271);value("RX "+String(int8_t(received[14]))+" RY "+String(int8_t(received[15])),309);label(NrfUi::last,342,TFT_WHITE);value(String(NrfDebugPacket::get32(received+4))+" / "+String(now-lastRx)+" ms",384);}else label(NrfUi::none,290,TFT_WHITE);
     label(running?NrfUi::gstop:NrfUi::ack,440);label(NrfUi::nav,480);
    }
-   screen.spr.resetViewport();label(NrfUi::title,8);screen.spr.drawFastHLine(20,55,200,TFT_WHITE);label(NrfUi::nav,480);
+   screen.spr.resetViewport();if(!UiNames::draw(screen.spr,"nrfdebug",10,8,220,false))label(NrfUi::title,8);screen.spr.drawFastHLine(20,55,200,TFT_WHITE);label(NrfUi::nav,480);
    refresh.push((uint16_t*)screen.spr.getPointer());
   }
   delay(1);

@@ -77,7 +77,7 @@ int nrfControlPage(uint8_t mode){
   if(c=='T')Serial.printf("[NRFCTRL] mode=%u page=%d present=%d online=%d armed=%d neutral=%d throttle=%d channel=%d rate=%d power=%d limit=%d TX=%lu ACK=%lu\n",mode,page,present,online,armed,safe,NrfControl::throttle(keys.kvs.L_knob),channel,rate,power,limit,(unsigned long)sent,(unsigned long)ack);
   if(c=='T')Serial.printf("[NRFDIR] forward=%u turn=%u frev=%u trev=%u saved=%d\n",directions.forwardAxis,directions.turnAxis,directions.forwardReverse,directions.turnReverse,directionSaved);
   if(now-lastPaint>=33){lastPaint=now;screen.spr.resetViewport();screen.spr.fillSprite(TFT_BLACK);
-   label(mode==NrfControl::Drone?NrfUi::drone:NrfUi::car,8);screen.spr.drawFastHLine(20,55,200,TFT_WHITE);
+   if(!UiNames::draw(screen.spr,mode==NrfControl::Drone?"drone":"car",10,8,220,false))label(mode==NrfControl::Drone?NrfUi::drone:NrfUi::car,8);screen.spr.drawFastHLine(20,55,200,TFT_WHITE);
    label(online?NrfUi::online:NrfUi::offline,63,online?TFT_GREEN:TFT_YELLOW);
    label(armed&&(feedback[7]&1)?NrfUi::armed:armed||hold?NrfUi::arming:remoteArmed?NrfUi::stopwaiting:NrfUi::locked,105,armed&&(feedback[7]&1)?TFT_GREEN:TFT_WHITE);
    if(page==0){

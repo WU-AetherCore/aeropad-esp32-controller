@@ -1,13 +1,14 @@
 #include "NetworkPortal.h"
 #include <WiFi.h>
-#include <WebServer.h>
-#include <DNSServer.h>
+#include "PortalServer.h"
+
 #include <Preferences.h>
 #include "ControlPacket.h"
+#include "UiNames.h"
 #include <atomic>
 
 namespace {
-WebServer server(80); DNSServer dns;
+PortalServer server(80); PortalDns dns;
 std::atomic<int> command{0}; std::atomic<bool> ap{false};
 std::atomic<bool> bootConnect{true};bool stationAllowed=false;
 std::atomic<bool> enabled{false},offReady{true};bool started=false;String savedSsid,savedPassword;uint32_t connectingAt=0;
@@ -20,15 +21,25 @@ const char page[] PROGMEM=R"HTML(<!doctype html><html lang="zh-CN"><meta charset
 <form id="config"><label>WiFi 名称<input id="ssid" maxlength="32" required></label><label>WiFi 密码<input id="password" type="password" maxlength="64" autocomplete="new-password"></label><button>保存并连接</button></form><p id="msg"></p><button onclick="forget()">清除已保存的路由器</button><p class="hint">仅支持 2.4 GHz。密码保存在设备中，网页不会回传密码。清除配置需要确认。</p></section>
 <section><h2>进入界面连接设置</h2><label><input id="boot" type="checkbox" style="width:auto">进入 WiFi 管理时自动连接已保存的 WiFi</label><button onclick="saveBoot()">保存自动连接设置</button><p class="hint">关闭后保留名称和密码，再次进入 WiFi 管理时不自动连接。退出管理界面会关闭无线网络。</p></section>
 <section><h2>网络与设备状态</h2><pre id="status">正在读取…</pre></section><section><h2>实时控件数据</h2><pre id="keys"></pre><p class="hint">数据来自设备当前采样；只在 WiFi 管理界面运行，退出后热点与网页关闭。此页面只读，不发送遥控指令。</p></section>
+<section><h2>界面与预设名称</h2><p class="hint">中文或英文，最多32个字符。保存后重启仍保留；预设名称对应固定槽位，不会改动遥控协议。长名称只在屏幕选中时滚动。预设右侧绿点表示已有参数，灰点表示空槽位。</p><button onclick="loadNames()">重新读取</button><button onclick="exportNames()">导出名称备份</button><label>导入名称备份<input type="file" accept="application/json" onchange="importNames(this.files[0])"></label><p id="nameStatus" role="status"></p><div id="names">正在读取名称…</div></section>
 <script>
 const $=id=>document.getElementById(id);let scanPending=false;
+let nameItems=[],nameBusy=false;
+async function nameRequest(url,options={}){const r=await fetch(url,{...options,cache:'no-store',signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error(await r.text());return r;}
+async function loadNames(){try{const d=await(await nameRequest('/api/names')).json();nameItems=d.items;$('names').replaceChildren();if(!d.ready){$('nameStatus').textContent=d.loading?'正在初始化名称存储，稍候会自动读取…':'设备名称存储不可用，请检查设备日志';if(d.loading)setTimeout(loadNames,1500);return;}let groups=new Map;for(const item of nameItems){if(!groups.has(item.group)){let box=document.createElement('details');box.style.margin='12px 0';let heading=document.createElement('summary');heading.textContent=item.group;heading.style.fontWeight='bold';box.append(heading);$('names').append(box);groups.set(item.group,box);}let row=document.createElement('div'),label=document.createElement('label'),input=document.createElement('input'),save=document.createElement('button'),reset=document.createElement('button');label.textContent=item.default;input.value=item.name||item.default;input.maxLength=64;input.dataset.key=item.key;input.setAttribute('aria-label',item.default+'名称');save.textContent='保存名称';reset.textContent='恢复默认';save.onclick=()=>saveName(item,input.value);reset.onclick=()=>resetName(item,input);row.append(label,input,save,reset);row.style.borderTop='1px solid #e1e8ee';row.style.padding='12px 0';groups.get(item.group).append(row);}}catch(e){$('nameStatus').textContent=e.message;}}
+async function rasterName(name){name=name.trim();if(!name||[...name].length>32||new TextEncoder().encode(name).length>128||/[\u0000-\u001f\u007f]/.test(name))throw Error('请填写1至32个可见字符');await document.fonts.ready;let c=document.createElement('canvas'),ctx=c.getContext('2d');ctx.font='600 28px sans-serif';let m=ctx.measureText(name),w=Math.ceil(Math.max(m.width,(m.actualBoundingBoxLeft||0)+(m.actualBoundingBoxRight||m.width)))+6;if(w>1024)throw Error('名称显示宽度过长，请缩短');c.width=w;c.height=36;ctx=c.getContext('2d');ctx.font='600 28px sans-serif';ctx.fillStyle='#fff';ctx.textBaseline='alphabetic';ctx.fillText(name,3+(m.actualBoundingBoxLeft||0),Math.round((36+(m.actualBoundingBoxAscent||26)-(m.actualBoundingBoxDescent||6))/2));let pixels=ctx.getImageData(0,0,w,36).data,stride=Math.ceil(w/8),bits=new Uint8Array(stride*36);for(let y=0;y<36;y++)for(let x=0;x<w;x++)if(pixels[(y*w+x)*4+3]>=96)bits[y*stride+(x>>3)]|=128>>(x&7);let binary='';for(const b of bits)binary+=String.fromCharCode(b);return {name,width:w,bitmap:btoa(binary)};}
+async function saveName(item,value){if(nameBusy)return;nameBusy=true;$('nameStatus').textContent='正在保存 '+item.default+'…';try{const data=await rasterName(value);const r=await nameRequest('/api/names',{method:'POST',body:new URLSearchParams({key:item.key,...data})});item.name=data.name;$('nameStatus').textContent=await r.text();}catch(e){$('nameStatus').textContent='保存失败：'+e.message;}finally{nameBusy=false;}}
+async function resetName(item,input){if(nameBusy)return;nameBusy=true;try{const r=await nameRequest('/api/names/reset',{method:'POST',body:new URLSearchParams({key:item.key})});item.name='';input.value=item.default;$('nameStatus').textContent=await r.text();}catch(e){$('nameStatus').textContent=e.message;}finally{nameBusy=false;}}
+function exportNames(){const data={version:1,names:Object.fromEntries(nameItems.filter(i=>i.name).map(i=>[i.key,i.name]))};let a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.href=url;a.download='AeroPad-names.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+async function importNames(file){if(!file||nameBusy)return;try{if(file.size>16384)throw Error('备份文件过大');const d=JSON.parse(await file.text());if(d.version!==1||!d.names||typeof d.names!=='object')throw Error('备份格式无效');for(const [key,value] of Object.entries(d.names)){let item=nameItems.find(i=>i.key===key);if(!item||typeof value!=='string')throw Error('备份包含无效项目');await rasterName(value);}nameBusy=true;for(const [key,value] of Object.entries(d.names)){const data=await rasterName(value);await nameRequest('/api/names',{method:'POST',body:new URLSearchParams({key,...data})});}$('nameStatus').textContent='名称备份已导入';await loadNames();}catch(e){$('nameStatus').textContent='导入未完成：'+e.message;}finally{nameBusy=false;}}
+loadNames();
 let bootLoaded=false;async function saveBoot(){try{let r=await request('/api/autoconnect',{method:'POST',body:new URLSearchParams({enabled:$('boot').checked?'1':'0'})});$('msg').textContent=await r.text();bootLoaded=false;}catch(e){$('msg').textContent='保存失败，请重试'}}
 async function bootInfo(){try{if(!bootLoaded){const d=await(await request('/api/autoconnect')).json();$('boot').checked=d.enabled;bootLoaded=true;}}catch(e){}setTimeout(bootInfo,2000)}bootInfo();
 async function request(url,options={}){return fetch(url,{...options,cache:'no-store',signal:AbortSignal.timeout(3000)})}
 async function scan(){if(scanPending)return;try{let r=await request('/api/scan',{method:'POST'});if(!r.ok)throw Error(await r.text());scanPending=true;$('msg').textContent='正在搜索，请稍候';checkScan();}catch(e){$('msg').textContent=e.message}}
 async function checkScan(){try{let s=await(await request('/api/networks')).json();if(s.ready){const previous=$('ssid').value;$('net').replaceChildren(new Option('选择网络或手动填写',''));s.networks.forEach(n=>$('net').add(new Option(`${n.ssid} (${n.rssi} dBm)`,n.ssid)));$('net').value=previous;scanPending=false;$('msg').textContent='搜索完成';return;}if(s.failed){scanPending=false;$('msg').textContent='搜索失败，请稍后重试';return;}}catch(e){}setTimeout(checkScan,500)}
 $('config').onsubmit=async e=>{e.preventDefault();let r=await fetch('/api/connect',{method:'POST',body:new URLSearchParams({ssid:$('ssid').value,password:$('password').value})});$('msg').textContent=await r.text()};async function forget(){if(confirm('清除已保存的路由器 WiFi 配置？')){$('msg').textContent=await(await fetch('/api/forget',{method:'POST'})).text()}}
-async function tick(){try{let d=await(await request('/api/status')).json();$('status').textContent=`路由器：${d.connected?'已连接':d.connecting?'正在连接':d.failed?'连接失败，请检查密码':'未连接'}\nWiFi：${d.ssid||'未配置'}\n路由器 IP：${d.ip}\n信号：${d.rssi} dBm\n热点客户端：${d.clients}\n运行：${d.uptime} 秒\n可用内存：${d.heap} 字节\nPSRAM：${d.psram} 字节\nMAC：${d.mac}`;}catch(e){$('status').textContent='网络暂时忙，正在自动重试'}setTimeout(tick,2000)}tick();
+async function tick(){try{let d=await(await request('/api/status')).json();$('status').textContent=`路由器：${d.connected?'已连接':d.connecting?'正在连接':d.failed?'连接失败，请检查密码':'未连接'}\nWiFi：${d.ssid||'未配置'}\n路由器 IP：${d.ip}\n信号：${d.rssi} dBm\n热点客户端：${d.clients}\n运行：${d.uptime} 秒\n可用内存：${d.heap} 字节\nPSRAM：${d.psram} 字节\nMAC：${d.mac}\n历史最低内存：${d.minHeap} 字节\n网页任务剩余栈：${d.stack} 字节\n已处理请求：${d.requests} / 超时：${d.timeouts}\n异常报文：HTTP ${d.rejected} / DNS ${d.dnsRejected}\n最长处理：${d.maxHandlerMs} ms\n复位原因码：${d.resetReason}`;}catch(e){$('status').textContent='网络暂时忙，正在自动重试'}setTimeout(tick,2000)}tick();
 async function live(){let delay=50;try{if(!document.hidden){let d=await(await request('/api/live')).json();$('keys').textContent=`左摇杆 X ${d.lx} / Y ${d.ly}\n右摇杆 X ${d.rx} / Y ${d.ry}\n旋钮 左 ${d.kl} / 右 ${d.kr}\n按键位图 ${d.buttons}\n倾角 X ${d.ax} / Y ${d.ay}\n距采样 ${d.age} ms`;}else delay=1000;}catch(e){delay=500;}setTimeout(live,delay)}live();
 </script></html>)HTML";
 String quote(const String& s){String r="\"";for(size_t i=0;i<s.length();i++){unsigned char c=s[i];if(c=='"'||c=='\\'){r+='\\';r+=char(c);}else if(c<32){char b[7];snprintf(b,7,"\\u%04x",c);r+=b;}else r+=char(c);}return r+'"';}
@@ -42,12 +53,16 @@ void worker(void*){
     WiFi.persistent(false);WiFi.mode(WIFI_STA);WiFi.setSleep(true);WiFi.setAutoReconnect(false);WiFi.disconnect();if(bootConnect)join();
     server.on("/api/autoconnect",HTTP_GET,[]{server.send(200,"application/json",bootConnect?"{\"enabled\":true}":"{\"enabled\":false}");});
     server.on("/api/autoconnect",HTTP_POST,[]{String v=server.arg("enabled");if(v!="0"&&v!="1"){server.send(400,"text/plain","invalid");return;}saveBoot(v=="1");server.send(200,"text/plain; charset=utf-8",bootConnect?"已保存：进入界面自动连接 WiFi":"已保存：进入界面不自动连接 WiFi");});
+    server.on("/api/names",HTTP_GET,[]{server.sendHeader("Cache-Control","no-store");server.send(200,"application/json; charset=utf-8",UiNames::catalog());});
+    server.on("/api/names",HTTP_POST,[]{String error;String w=server.arg("width");bool ok=w.length()>0&&w.length()<5;for(unsigned i=0;i<w.length();i++)if(w[i]<'0'||w[i]>'9')ok=false;if(ok)ok=UiNames::save(server.arg("key"),server.arg("name"),w.toInt(),server.arg("bitmap"),error);server.send(ok?200:400,"text/plain; charset=utf-8",ok?"已保存名称，重启后仍保留":error.length()?error:"字体宽度无效");});
+    server.on("/api/names/reset",HTTP_POST,[]{String error;bool ok=UiNames::reset(server.arg("key"),error);server.send(ok?200:400,"text/plain; charset=utf-8",ok?"已恢复默认名称":error);});
     server.on("/api/live",HTTP_GET,[]{KVS k;uint32_t age;portENTER_CRITICAL(&lock);k=telemetry;age=millis()-sampledAt;portEXIT_CRITICAL(&lock);char j[220];snprintf(j,sizeof(j),"{\"lx\":%d,\"ly\":%d,\"rx\":%d,\"ry\":%d,\"kl\":%d,\"kr\":%d,\"ax\":%d,\"ay\":%d,\"buttons\":%lu,\"age\":%lu}",k.LX,k.LY,k.RX,k.RY,k.L_knob,k.R_knob,k.angleX,k.angleY,(unsigned long)ControlPacket::buttons(k),(unsigned long)age);server.sendHeader("Cache-Control","no-store");server.send(200,"application/json",j);});
-    server.on("/",HTTP_GET,[]{server.send_P(200,"text/html; charset=utf-8",page);});
+    server.on("/",HTTP_GET,[]{server.sendHeader("Cache-Control","no-store");server.send_P(200,"text/html; charset=utf-8",page);});
     server.on("/api/status",HTTP_GET,[]{KVS k;uint32_t age;portENTER_CRITICAL(&lock);k=telemetry;age=millis()-sampledAt;portEXIT_CRITICAL(&lock);
         bool connected=WiFi.status()==WL_CONNECTED;String j="{\"connected\":"+String(connected?"true":"false")+",\"connecting\":"+String(!connected&&connectingAt&&millis()-connectingAt<20000?"true":"false")+",\"failed\":"+String(!connected&&connectingAt&&millis()-connectingAt>=20000?"true":"false");
         j+=",\"ssid\":"+quote(savedSsid)+",\"ip\":"+quote(WiFi.localIP().toString())+",\"mac\":"+quote(WiFi.macAddress());
         j+=",\"rssi\":"+String(connected?WiFi.RSSI():0)+",\"clients\":"+String(WiFi.softAPgetStationNum())+",\"uptime\":"+String(millis()/1000)+",\"heap\":"+String(ESP.getFreeHeap())+",\"psram\":"+String(ESP.getFreePsram());
+        j+=",\"minHeap\":"+String(ESP.getMinFreeHeap())+",\"stack\":"+String(uxTaskGetStackHighWaterMark(nullptr))+",\"requests\":"+String(server.requests)+",\"timeouts\":"+String(server.timeouts)+",\"rejected\":"+String(server.rejected)+",\"dnsRejected\":"+String(dns.rejected)+",\"maxHandlerMs\":"+String(server.maxHandlerMs)+",\"resetReason\":"+String(int(esp_reset_reason()));
         j+=",\"lx\":"+String(k.LX)+",\"ly\":"+String(k.LY)+",\"rx\":"+String(k.RX)+",\"ry\":"+String(k.RY)+",\"kl\":"+String(k.L_knob)+",\"kr\":"+String(k.R_knob)+",\"ax\":"+String(k.angleX)+",\"ay\":"+String(k.angleY)+",\"buttons\":"+String(ControlPacket::buttons(k))+",\"age\":"+String(age)+"}";server.send(200,"application/json",j);});
     server.on("/api/connect",HTTP_POST,[]{String ssid=server.arg("ssid"),pass=server.arg("password");if(ssid.isEmpty()||ssid.length()>32||(pass.length()&&pass.length()<8)||pass.length()>64){server.send(400,"text/plain; charset=utf-8","名称或密码长度无效");return;}savedSsid=ssid;savedPassword=pass;Preferences p;p.begin("aerowifi",false);p.putString("ssid",ssid);p.putString("password",pass);p.end();join();server.send(200,"text/plain; charset=utf-8","已保存，正在连接；请查看下方状态");});
     server.on("/api/forget",HTTP_POST,[]{Preferences p;p.begin("aerowifi",false);p.clear();p.end();savedSsid="";savedPassword="";connectingAt=0;WiFi.disconnect();server.send(200,"text/plain; charset=utf-8","已清除路由器配置，热点仍可使用");});
@@ -59,10 +74,10 @@ void worker(void*){
         if(offReady){offReady=false;server.begin();WiFi.mode(WIFI_STA);WiFi.setSleep(true);if(bootConnect)join();}
         int c=command.exchange(0);if(c==2||c==3)saveBoot(c==3);if(c==1){if(ap){dns.stop();WiFi.softAPdisconnect(true);ap=false;WiFi.mode(WIFI_STA);}else startAp();}
         if(scanning){int n=WiFi.scanComplete();if(n>=0||n==WIFI_SCAN_FAILED||millis()-scanAt>12000){networks=n>=0?"{\"ready\":true,\"networks\":[":"{\"ready\":false,\"failed\":true,\"networks\":[";for(int i=0;i<min(n,32);i++){if(i)networks+=',';networks+="{\"ssid\":"+quote(WiFi.SSID(i))+",\"rssi\":"+String(WiFi.RSSI(i))+"}";}networks+="]}";WiFi.scanDelete();scanning=false;WiFi.setAutoReconnect(true);}}
-        if(ap)dns.processNextRequest();server.handleClient();vTaskDelay(pdMS_TO_TICKS(2));}
+        if(ap)dns.processNextRequest();server.handleClient();vTaskDelay(max(TickType_t(1),pdMS_TO_TICKS(2)));}
 }
 }
-void WIFI::begin(){enabled=true;if(started)return;offReady=false;started=true;xTaskCreate(worker,"wifi_portal",8192,nullptr,1,nullptr);}
+void WIFI::begin(){enabled=true;if(started)return;offReady=false;started=true;xTaskCreatePinnedToCore(worker,"wifi_portal",8192,nullptr,1,nullptr,0);}
 void WIFI::toggleHotspot(){begin();command=1;}
 bool WIFI::hotspot(){return ap.load();}
 bool WIFI::autoConnect(){return bootConnect.load();}

@@ -100,7 +100,7 @@ int nrfGenericPage(uint8_t vehicle,int firstPage=0,bool useApplied=false){
   }
   // Statistics page: left/right switches raw receive representation.
   if(d&&(page==0||page==8)){cfg.format=(cfg.format+d+3)%3;savePending=true;changed=millis();refresh.invalidate();}
-  uint32_t now=millis();const uint32_t paintInterval=vehicle&&page==0?33:100;if(savePending&&now-changed>=800)save();
+  uint32_t now=millis();const uint32_t paintInterval=vehicle&&(page==0||page==9)?33:100;if(savePending&&now-changed>=800)save();
   if(now-lastCheck>=1000){lastCheck=now;bool found=radio.isChipConnected();if(found!=present){present=found;apply();refresh.invalidate();}}
   if(present){if(asyncTx.poll(radio,now,cfg.rxLength)==1)ok++;for(int i=0;i<3&&radio.available();i++){
    uint8_t n=cfg.dynamic?radio.getDynamicPayloadSize():cfg.rxLength;if(n<1||n>32){radio.flush_rx();bad++;break;}radio.read(received,n);receivedLength=n;rx++;lastRx=now;
@@ -111,8 +111,8 @@ int nrfGenericPage(uint8_t vehicle,int firstPage=0,bool useApplied=false){
    asyncTx.begin(radio,bytes,cfg.txLength,now);tx++;
   }}
   if(c=='T')Serial.printf("[NRFRAW] present=%d running=%d page=%d ch=%u rate=%u width=%u crc=%u ack=%u dynamic=%u rxlen=%u txlen=%u saved=%d TX=%lu OK=%lu RX=%lu BAD=%lu\n",present,running,page,cfg.channel,cfg.rate,cfg.width,cfg.crc,cfg.ack,cfg.dynamic,cfg.rxLength,cfg.txLength,!savePending&&saveOk,(unsigned long)tx,(unsigned long)ok,(unsigned long)rx,(unsigned long)bad);
-  if(now-paint>=paintInterval&&!asyncTx.busy()){paint=now;screen.spr.resetViewport();screen.spr.fillSprite(TFT_BLACK);label(vehicle?(page==0?(vehicle==1?NrfUi::drone:NrfUi::car):(vehicle==1?NrfUi::customdrone:NrfUi::customcar)):NrfUi::generic,8);screen.spr.drawFastHLine(20,55,200,TFT_WHITE);
-   const uint8_t* headings[]={NrfUi::rawstats,NrfUi::settings,NrfUi::packet,NrfUi::timing,NrfUi::txaddr,NrfUi::rxaddr,NrfUi::payload,NrfUi::presets,NrfUi::data,NrfUi::profilebank,NrfUi::mapping,NrfUi::joydir,NrfUi::hub,NrfUi::defaultmode};if(vehicle&&page==0&&loadedApplied&&appliedSlot<5){const uint8_t* names[]={NrfUi::using1,NrfUi::using2,NrfUi::using3,NrfUi::using4,NrfUi::using5};label(names[appliedSlot],62,TFT_GREEN);}else label(headings[page],62,TFT_CYAN);screen.spr.drawRoundRect(6,433,228,81,7,TFT_WHITE);
+  if(now-paint>=paintInterval&&!asyncTx.busy()){paint=now;screen.spr.resetViewport();screen.spr.fillSprite(TFT_BLACK);if(!UiNames::draw(screen.spr,vehicle?(vehicle==1?"drone":"car"):"nrfsettings",10,8,220,false))label(vehicle?(page==0?(vehicle==1?NrfUi::drone:NrfUi::car):(vehicle==1?NrfUi::customdrone:NrfUi::customcar)):NrfUi::generic,8);screen.spr.drawFastHLine(20,55,200,TFT_WHITE);
+   const uint8_t* headings[]={NrfUi::rawstats,NrfUi::settings,NrfUi::packet,NrfUi::timing,NrfUi::txaddr,NrfUi::rxaddr,NrfUi::payload,NrfUi::presets,NrfUi::data,NrfUi::profilebank,NrfUi::mapping,NrfUi::joydir,NrfUi::hub,NrfUi::defaultmode};if(vehicle&&page==0&&loadedApplied&&appliedSlot<5){const uint8_t* names[]={NrfUi::using1,NrfUi::using2,NrfUi::using3,NrfUi::using4,NrfUi::using5};char nameKey[12];snprintf(nameKey,sizeof(nameKey),"%s%d",vehicle==1?"drone":"car",appliedSlot+1);if(!UiNames::draw(screen.spr,nameKey,10,62,220,true,TFT_GREEN))label(names[appliedSlot],62,TFT_GREEN);}else label(headings[page],62,TFT_CYAN);screen.spr.drawRoundRect(6,433,228,81,7,TFT_WHITE);
    if(page==12){
     const uint8_t* names[]={NrfUi::radiomenu,NrfUi::packetmenu,NrfUi::contentmenu,NrfUi::profilebank,NrfUi::joymenu,NrfUi::defaultmode};
     for(int i=0;i<6;i++){int y=107+i*48;screen.spr.fillRoundRect(9,y,222,45,6,field==i?0x0843:TFT_BLACK);screen.spr.drawRoundRect(9,y,222,45,6,field==i?TFT_CYAN:TFT_WHITE);label(names[i],y+4,field==i?TFT_CYAN:TFT_WHITE);}label(NrfUi::menuoperate,439);
@@ -120,7 +120,7 @@ int nrfGenericPage(uint8_t vehicle,int firstPage=0,bool useApplied=false){
    }else if(page==9){
     const uint8_t* storedNames[]={NrfUi::slot1saved,NrfUi::slot2saved,NrfUi::slot3saved,NrfUi::slot4saved,NrfUi::slot5saved};
     const uint8_t* emptyNames[]={NrfUi::slot1empty,NrfUi::slot2empty,NrfUi::slot3empty,NrfUi::slot4empty,NrfUi::slot5empty};
-    for(int i=0;i<5;i++){int y=107+i*51;bool selected=slot==i;screen.spr.fillRoundRect(9,y,222,48,6,selected?0x0843:TFT_BLACK);screen.spr.drawRoundRect(9,y,222,48,6,selected?TFT_CYAN:TFT_WHITE);label(occupiedSlots[i]?storedNames[i]:emptyNames[i],y+6,selected?TFT_CYAN:occupiedSlots[i]?TFT_GREEN:TFT_WHITE);}
+    for(int i=0;i<5;i++){int y=107+i*51;bool selected=slot==i;screen.spr.fillRoundRect(9,y,222,48,6,selected?0x0843:TFT_BLACK);screen.spr.drawRoundRect(9,y,222,48,6,selected?TFT_CYAN:TFT_WHITE);char nameKey[12];snprintf(nameKey,sizeof(nameKey),"%s%d",vehicle==1?"drone":"car",i+1);uint16_t color=selected?TFT_CYAN:occupiedSlots[i]?TFT_GREEN:TFT_WHITE;if(!UiNames::draw(screen.spr,nameKey,20,y+6,193,selected,color))label(occupiedSlots[i]?storedNames[i]:emptyNames[i],y+6,color);else screen.spr.fillCircle(220,y+24,3,occupiedSlots[i]?TFT_GREEN:TFT_DARKGREY);}
     const uint8_t* actions[]={NrfUi::saveslot,NrfUi::loadslot,NrfUi::delslot};label(actions[bankAction],359,bankAction==2?TFT_YELLOW:TFT_CYAN);label(bankAction==0?NrfUi::saveguide:bankAction==1?NrfUi::applyguide:NrfUi::deleteguide,400);label(NrfUi::bankoperations,439);
    }else if(vehicle&&page==0){
     label(!present?NrfUi::absent:running?NrfUi::controlrunning:NrfUi::controlstopped,103,!present?TFT_YELLOW:running?TFT_GREEN:TFT_WHITE);

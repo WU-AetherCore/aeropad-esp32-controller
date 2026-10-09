@@ -40,6 +40,7 @@
 #include "PuzzleGames.h"
 #include "Sokoban.h"
 #include <Preferences.h>
+#include "UiNames.h"
 #include "generated_ui_text.h" // BLE 页面完整中文位图字形
 
 
@@ -165,6 +166,7 @@ void setup() {
 	nrf.init(ID, 0);nrf.radio.powerDown();			 // (遥控器ID, 通信功率，0-3)
 	keys.init(ID);
 	screen.init();
+    UiNames::begin();
 	buzzer.init();
 	led.init();
     // Radios remain idle until their corresponding control page is entered.
@@ -252,8 +254,14 @@ void uiFooter(bool menuPage) {
 const uint16_t nrfGenericTitle[1]={0};
 const uint16_t nrfDebugTitle[1]={0}; // Menu sentinel: compact monochrome title.
 const uint16_t bleProtocolTitle[1]={0};
+const char* uiNameKey(const uint16_t* title){
+ const uint16_t* titles[]={ui_m0,ui_m1,ui_m2,ui_m3,ui_blehub,ui_m4,ui_drone,ui_car,nrfDebugTitle,nrfGenericTitle,ui_m7,ui_m8,ui_m9,ui_m10,ui_m11,ui_sokoban,ui_wifimanage,bleProtocolTitle,ui_title,ui_module,ui_sendsettings,ui_uartsettings,ui_m5,ui_m6,ui_cal,ui_monitor};
+ const char* names[]={"main","nrf","games","network","bluetooth","system","drone","car","nrfdebug","nrfsettings","snake","brick","plane","2048","tetris","sokoban","wifi","bleprotocol","gamepad","module","send","serial","keytest","cube","calibration","monitor"};
+ for(unsigned i=0;i<sizeof(titles)/sizeof(titles[0]);i++)if(title==titles[i])return names[i];return nullptr;
+}
+void uiNamedImage(int x,int y,const uint16_t* title){if(!UiNames::draw(screen.spr,uiNameKey(title),x,y+4,220,false))screen.spr.pushImage(x,y,220,44,title);}
 void selectMenu(const uint16_t *const *titles, const uint16_t *const *icons, void (**actions)(), int count, bool root=false, const uint16_t* category=nullptr) {
-    int index=0; bool dirty=true;
+    int index=0; bool dirty=true; uint32_t nameRevision=UiNames::revision(),namePaint=0; UiRefresh menuRefresh;
     JoystickNavigation navigation;
     while(true) {
         char cmd=Serial.available()?Serial.read():0;
@@ -271,11 +279,13 @@ void selectMenu(const uint16_t *const *titles, const uint16_t *const *icons, voi
         if(root && cmd=='I') { bluetoothLayoutPreview(); dirty=true; }
         if(cmd=='P') keys.printCalibration();
         if(cmd=='F'){radioStatus();nrf.radio.printDetails();}
+        if(nameRevision!=UiNames::revision()){nameRevision=UiNames::revision();dirty=true;}
         if(dirty) {
             screen.spr.unloadFont(); screen.spr.setSwapBytes(true); screen.spr.fillSprite(TFT_BLACK);
-            screen.spr.pushImage(10,12,220,44,category?category:root?ui_m0:ui_menugroup);
+            uiNamedImage(10,12,category?category:root?ui_m0:ui_menugroup);
             screen.spr.drawFastHLine(20,68,200,TFT_DARKGREY);
-            if(titles[index]==nrfGenericTitle) screen.spr.drawBitmap(10,94,NrfUi::generic,220,36,TFT_WHITE);
+            if(UiNames::draw(screen.spr,uiNameKey(titles[index]),10,96,220,true)) {}
+            else if(titles[index]==nrfGenericTitle) screen.spr.drawBitmap(10,94,NrfUi::generic,220,36,TFT_WHITE);
             else if(titles[index]==nrfDebugTitle) screen.spr.drawBitmap(10,94,NrfUi::title,220,36,TFT_WHITE);
             else if(titles[index]==bleProtocolTitle) screen.spr.drawBitmap(10,94,NrfUi::bptitle,220,36,TFT_WHITE);
             else screen.spr.pushImage(10,92,220,44,titles[index]);
@@ -330,8 +340,9 @@ void selectMenu(const uint16_t *const *titles, const uint16_t *const *icons, voi
             uiFooter(true);
             if(!root) screen.spr.pushImage(10,440,220,44,ui_joyselect);
             if(root) screen.spr.pushImage(10,488,220,44,ui_rootenter);
-            lcd_PushColors(0,0,240,536,(uint16_t*)screen.spr.getPointer()); dirty=false;
+            menuRefresh.push((uint16_t*)screen.spr.getPointer()); dirty=false;namePaint=millis();
         }
+        if(!dirty&&UiNames::custom(uiNameKey(titles[index]))&&millis()-namePaint>=33){namePaint=millis();screen.spr.fillRect(10,92,220,44,TFT_BLACK);if(UiNames::draw(screen.spr,uiNameKey(titles[index]),10,96,220,true))menuRefresh.push((uint16_t*)screen.spr.getPointer());else {if(titles[index]==nrfGenericTitle)screen.spr.drawBitmap(10,94,NrfUi::generic,220,36,TFT_WHITE);else if(titles[index]==nrfDebugTitle)screen.spr.drawBitmap(10,94,NrfUi::title,220,36,TFT_WHITE);else if(titles[index]==bleProtocolTitle)screen.spr.drawBitmap(10,94,NrfUi::bptitle,220,36,TFT_WHITE);else screen.spr.pushImage(10,92,220,44,titles[index]);}}
         if(keys.o.pressed() || cmd=='E') { actions[index](); navigation.reset(); dirty=true; }
         delay(10);
     }
@@ -371,7 +382,7 @@ void wifiSettings(){
         if(keys.a.pressed()||cmd=='A')wifi.setAutoConnect(!wifi.autoConnect());
         if(cmd=='T')Serial.printf("[WIFI] hotspot=%d station=%d ap_ip=%s sta_ip=%s clients=%u auto=%d\n",wifi.hotspot(),WiFi.status(),WiFi.softAPIP().toString().c_str(),WiFi.localIP().toString().c_str(),WiFi.softAPgetStationNum(),wifi.autoConnect());
         if(cmd=='S')uiScreenshot();
-        screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,8,220,44,ui_wifimanage);
+        screen.spr.fillSprite(TFT_BLACK);uiNamedImage(10,8,ui_wifimanage);
         screen.spr.drawFastHLine(20,64,200,TFT_DARKGREY);
         screen.spr.drawRoundRect(6,78,228,206,12,wifi.hotspot()?TFT_CYAN:TFT_DARKGREY);
         screen.spr.pushImage(10,83,220,44,wifi.hotspot()?ui_hotspoton:ui_hotspotoff);
@@ -418,7 +429,7 @@ void serialSettings() {
         }
         if(target==1&&(keys.o.pressed()||cmd=='E')&&bleModule.snapshot().state==BleModule::Connected){bluetoothBaudSettings();screen.spr.unloadFont();screen.spr.setTextDatum(TC_DATUM);screen.spr.resetViewport();navigation.reset();refresh.invalidate();}
         if(cmd=='T')Serial.printf("[SERIAL] usb_mode=%d remote_connected=%d\n",bleModule.usbMode(),bleModule.snapshot().state==BleModule::Connected);
-        screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,8,220,44,ui_uartsettings);screen.spr.drawFastHLine(20,66,200,TFT_DARKGREY);
+        screen.spr.fillSprite(TFT_BLACK);uiNamedImage(10,8,ui_uartsettings);screen.spr.drawFastHLine(20,66,200,TFT_DARKGREY);
         screen.spr.pushImage(10,98,220,44,ui_seriallocal);screen.spr.pushImage(10,146,220,44,ui_usbmode);
         const uint16_t* modes[]={ui_usboff,ui_usbbinary,ui_usbhex,ui_usbtext,ui_usbjson};screen.spr.pushImage(10,192,220,44,modes[bleModule.usbMode()]);
         screen.spr.pushImage(10,250,220,44,ui_serialremote);screen.spr.pushImage(10,296,220,44,bleModule.snapshot().state==BleModule::Connected?ui_uartconfirm:ui_disconnected);
@@ -465,7 +476,7 @@ void bluetoothOutputSettings() {
             bleModule.configure(format,period);status=bleModule.snapshot();
         }
         if(cmd=='T')Serial.printf("[OUTPUT] format=%d period=%d\n",status.format,status.period);
-        screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,8,220,44,ui_sendsettings);screen.spr.drawFastHLine(20,66,200,TFT_DARKGREY);
+        screen.spr.fillSprite(TFT_BLACK);uiNamedImage(10,8,ui_sendsettings);screen.spr.drawFastHLine(20,66,200,TFT_DARKGREY);
         screen.spr.pushImage(10,116,220,44,ui_sendformat);screen.spr.setTextColor(TFT_CYAN,TFT_BLACK);
         const uint16_t* formats[]={ui_formatbinary,ui_formatjson,ui_formathex,ui_formattext};screen.spr.pushImage(10,162,220,44,formats[status.format]);
         screen.spr.pushImage(10,246,220,44,ui_sendperiod);screen.spr.setTextColor(0x5751,TFT_BLACK);
@@ -480,7 +491,7 @@ void bluetoothOutputSettings() {
 }
 void paintBluetoothBaud(const BleModule::Snapshot& status,int mode,int choice) {
     const uint32_t rates[]={9600,19200,38400,57600,115200};
-        screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,8,220,44,ui_uartsettings);screen.spr.drawFastHLine(20,66,200,TFT_DARKGREY);
+        screen.spr.fillSprite(TFT_BLACK);uiNamedImage(10,8,ui_uartsettings);screen.spr.drawFastHLine(20,66,200,TFT_DARKGREY);
         screen.spr.pushImage(10,102,220,44,status.baudSupported?ui_uartactual:ui_uartunsupported);
         screen.spr.setTextColor(0x5751,TFT_BLACK);if(status.baudSupported)screen.spr.drawNumber(status.baud,120,148,4);else screen.spr.drawString("--",120,148,4);
         screen.spr.pushImage(10,200,220,44,ui_uartauto);
@@ -511,7 +522,7 @@ void bluetoothBaudSettings() {
 }
 void paintBluetoothModule(const BleModule::Snapshot& status,const KVS& data,bool control,bool linked,int selected,int action) {
 screen.spr.fillSprite(TFT_BLACK);
-            screen.spr.pushImage(10,8,220,44,ui_module);
+            uiNamedImage(10,8,ui_module);
             const uint16_t* stateText=status.state==BleModule::Scanning?ui_scanning:status.state==BleModule::Connecting?ui_connecting:status.state==BleModule::Connected?ui_connected:status.state==BleModule::Unsupported?ui_nouart:status.state==BleModule::Failed?ui_connectfailed:ui_disconnected;
             screen.spr.pushImage(10,58,220,44,stateText);screen.spr.drawFastHLine(20,108,200,TFT_DARKGREY);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);
             if(control) {
@@ -646,7 +657,7 @@ void btGamepad()
             lastPaint=millis();
             if(firstFrame) {
                 screen.spr.fillSprite(TFT_BLACK);
-                screen.spr.pushImage(10,12,220,44,ui_title);
+                uiNamedImage(10,12,ui_title);
                 screen.spr.pushImage(10,434,220,44,ui_bleexit1);
                 screen.spr.pushImage(10,484,220,44,ui_bleexit2);
             }
@@ -898,7 +909,7 @@ void snake() {
         if(keys.up.pressed()||c=='U'||keys.kvs.LY<-55)game.turn(0);else if(keys.right.pressed()||c=='R'||keys.kvs.LX>55)game.turn(1);else if(keys.down.pressed()||c=='D'||keys.kvs.LY>55)game.turn(2);else if(keys.left.pressed()||c=='L'||keys.kvs.LX<-55)game.turn(3);
         if(playing&&!paused&&!game.over&&millis()-tick>=uint32_t(max(70,220-game.score/5))){tick=millis();game.step(esp_random());if(game.score>best){best=game.score;if(game.over)prefs.putInt("snake",best);}}
         if(c=='T')Serial.printf("[SNAKE] score=%d length=%d over=%d paused=%d playing=%d\n",game.score,game.length,game.over,paused,playing);
-        if(millis()-paint>=20){paint=millis();screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,4,220,44,ui_m7);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("S "+String(game.score)+"  BEST "+String(best),120,57,4);
+        if(millis()-paint>=20){paint=millis();screen.spr.fillSprite(TFT_BLACK);uiNamedImage(10,4,ui_m7);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("S "+String(game.score)+"  BEST "+String(best),120,57,4);
             screen.spr.drawRect(10,98,220,340,TFT_DARKGREY);screen.spr.fillRoundRect(12+game.food.x*12,100+game.food.y*12,10,10,3,0xFD20);
             for(int i=game.length-1;i>=0;i--)screen.spr.fillRoundRect(12+game.body[i].x*12,100+game.body[i].y*12,10,10,2,i==0?TFT_CYAN:TFT_GREEN);
             if(!playing||paused||game.over){screen.spr.fillRect(10,244,220,44,TFT_BLACK);screen.spr.pushImage(10,244,220,44,game.over?(game.won?ui_gamewin:ui_gameover):paused?ui_gamepause:ui_gamestart);}
@@ -917,7 +928,7 @@ void brick() {
         if((keys.a.pressed()||c=='A')&&!game.over)paused=!paused;
         if(!paused&&!game.over){float axis=keys.kvs.LX/100.0f;if(!keys.kvs.left)axis=-1;if(!keys.kvs.right)axis=1;if(c=='L')game.move(game.paddle-20);if(c=='R')game.move(game.paddle+20);game.move(game.paddle+axis*260*dt);int steps=max(1,int(ceilf(dt/.008f)));for(int i=0;i<steps;i++)game.step(dt/steps);best=max(best,game.score);}
         if(c=='T')Serial.printf("[BRICK] score=%d lives=%d level=%d over=%d paused=%d launched=%d\n",game.score,game.lives,game.level,game.over,paused,game.launched);
-        if(now-paint>=20){paint=now;screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,4,220,44,ui_m8);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("S "+String(game.score)+" L "+String(game.level)+" HP "+String(game.lives),120,57,4);
+        if(now-paint>=20){paint=now;screen.spr.fillSprite(TFT_BLACK);uiNamedImage(10,4,ui_m8);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("S "+String(game.score)+" L "+String(game.level)+" HP "+String(game.lives),120,57,4);
             screen.spr.drawRect(10,98,220,340,TFT_DARKGREY);for(int i=0;i<40;i++)if(game.bricks[i])screen.spr.fillRoundRect(16+(i%8)*26,118+(i/8)*20,23,15,2,game.bricks[i]>1?TFT_ORANGE:i/8%2?TFT_GREEN:TFT_CYAN);
             screen.spr.fillRoundRect(int(game.paddle)-26,410,52,7,3,TFT_WHITE);screen.spr.fillCircle(lroundf(game.x),lroundf(game.y),4,TFT_CYAN);
             if(paused||game.over||!game.launched){screen.spr.fillRect(10,260,220,44,TFT_BLACK);screen.spr.pushImage(10,260,220,44,game.over?(game.won?ui_gamewin:ui_gameover):paused?ui_gamepause:ui_gamestart);}
@@ -936,7 +947,7 @@ void plane() {
         if((keys.b.pressed()||c=='B')&&playing&&!paused)game.bomb();
         if(playing&&!paused&&!game.over){float ax=keys.kvs.LX/100.0f,ay=keys.kvs.LY/100.0f;if(!keys.kvs.left||c=='L')ax=-1;if(!keys.kvs.right||c=='R')ax=1;if(!keys.kvs.up||c=='U')ay=-1;if(!keys.kvs.down||c=='D')ay=1;int n=max(1,int(ceilf(dt/.008f)));for(int i=0;i<n;i++)game.step(dt/n,ax,ay,esp_random());best=max(best,game.score);}
         if(c=='T')Serial.printf("[PLANE] score=%d lives=%d bombs=%d level=%d over=%d paused=%d playing=%d\n",game.score,game.lives,game.bombs,game.level,game.over,paused,playing);
-        if(now-paint>=20){paint=now;screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,4,220,44,ui_m9);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("S "+String(game.score)+" HP "+String(game.lives)+" B "+String(game.bombs),120,57,4);
+        if(now-paint>=20){paint=now;screen.spr.fillSprite(TFT_BLACK);uiNamedImage(10,4,ui_m9);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("S "+String(game.score)+" HP "+String(game.lives)+" B "+String(game.bombs),120,57,4);
             for(int i=0;i<20;i++)screen.spr.drawPixel(16+(i*47)%208,103+(i*79+int(now/35))%330,TFT_DARKGREY);
             for(auto& b:game.shots)if(b.active)screen.spr.fillRect(int(b.x)-1,int(b.y)-4,3,8,TFT_CYAN);
             for(auto& b:game.hostile)if(b.active)screen.spr.fillCircle(int(b.x),int(b.y),3,TFT_ORANGE);
@@ -956,7 +967,7 @@ void num2048() {
         if(keys.up.pressed()||c=='U'||nav==JoystickNavigation::Up)d=0;if(keys.right.pressed()||c=='R'||nav==JoystickNavigation::Right)d=1;if(keys.down.pressed()||c=='D'||nav==JoystickNavigation::Down)d=2;if(keys.left.pressed()||c=='L'||nav==JoystickNavigation::Left)d=3;
         if(d>=0){game.move(d,esp_random());dirty=true;}if(keys.a.pressed()||c=='A'){game.undo();dirty=true;}if(keys.o.pressed()||c=='E'){game.reset(esp_random());dirty=true;navigation.reset();}best=max(best,game.score);
         if(c=='T')Serial.printf("[2048] score=%d over=%d undo=%d\n",game.score,game.over,game.undoReady);
-        if(dirty){dirty=false;screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,4,220,44,ui_m10);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("S "+String(game.score),120,62,4);screen.spr.drawString("BEST "+String(best),120,99,4);
+        if(dirty){dirty=false;screen.spr.fillSprite(TFT_BLACK);uiNamedImage(10,4,ui_m10);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("S "+String(game.score),120,62,4);screen.spr.drawString("BEST "+String(best),120,99,4);
             for(int i=0;i<16;i++){int x=14+(i%4)*53,y=150+(i/4)*53;uint32_t v=game.cells[i];uint16_t col=v>=2048?0xB560:v>=128?0x8208:v>=16?0x3208:v?0x1928:0x1082;screen.spr.fillRoundRect(x,y,49,49,5,col);if(v){screen.spr.setTextColor(v>=2048?TFT_YELLOW:TFT_WHITE,col);screen.spr.drawString(String(v),x+24,y+13,v>=1024?2:4);}}
             if(game.over)screen.spr.pushImage(10,374,220,44,ui_gameover);else screen.spr.pushImage(10,374,220,44,ui_snakekeys);
             screen.spr.pushImage(10,434,220,44,ui_mergehelp);screen.spr.pushImage(10,488,220,44,ui_exit);refresh.push((uint16_t*)screen.spr.getPointer());}delay(2);
@@ -982,7 +993,7 @@ void sokoban() {
         if(celebration.due(millis())&&game.level+1<game.COUNT){game.reset(game.level+1);prefs.putUChar("selected",game.level);celebration.cancel();navigation.reset();dirty=true;}
         if(c=='T')Serial.printf("[SOKO] level=%d steps=%d pushes=%d placed=%d won=%d celebrating=%d history=%d selecting=%d unlocked=%d\n",game.level+1,game.steps,game.pushes,game.placed(),game.won(),celebration.active,game.historyCount,selecting,unlocked+1);
         if(celebration.active&&millis()-paint>=20){dirty=true;paint=millis();}
-        if(dirty){dirty=false;screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,4,220,44,ui_sokoban);screen.spr.pushImage(10,55,220,44,ui_sokostats);
+        if(dirty){dirty=false;screen.spr.fillSprite(TFT_BLACK);uiNamedImage(10,4,ui_sokoban);screen.spr.pushImage(10,55,220,44,ui_sokostats);
             screen.spr.setTextColor(TFT_CYAN,TFT_BLACK);screen.spr.drawString(String(game.level+1)+"/10",45,101,4);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString(String(game.steps),120,101,4);screen.spr.setTextColor(TFT_GREEN,TFT_BLACK);screen.spr.drawString(String(game.placed())+"/"+String(game.total()),195,101,4);
             for(int i=0;i<game.COUNT;i++)screen.spr.fillCircle(48+16*i,138,i==game.level?4:2,i==game.level?TFT_WHITE:i<=unlocked?TFT_CYAN:TFT_DARKGREY);
             if(!celebration.active){for(int i=0;i<game.N;i++){int x=16+(i%game.W)*26,y=151+(i/game.W)*26;screen.spr.fillRoundRect(x,y,24,24,3,game.terrain[i]=='#'?0x29AB:0x1082);if(game.terrain[i]=='#'){screen.spr.drawFastHLine(x+3,y+6,18,0x426F);continue;}
@@ -1015,7 +1026,7 @@ void tetris() {
         if(playing&&!paused&&!game.over){if(keys.left.pressed()||c=='L'||nav==JoystickNavigation::Left)game.move(-1);if(keys.right.pressed()||c=='R'||nav==JoystickNavigation::Right)game.move(1);if(keys.up.pressed()||c=='U'||nav==JoystickNavigation::Up)game.rotate();if(keys.b.pressed()||c=='B')game.drop(esp_random());
             uint32_t interval=(!keys.kvs.down||keys.kvs.LY>55)?45:max(90,650-game.lines/10*50);if(c=='D'||millis()-lastFall>=interval){lastFall=millis();game.down(esp_random());}best=max(best,game.score);}
         if(c=='T')Serial.printf("[TETRIS] score=%d lines=%d over=%d paused=%d playing=%d\n",game.score,game.lines,game.over,paused,playing);
-        if(millis()-paint>=20){paint=millis();screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,4,220,44,ui_m11);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("S "+String(game.score)+" ROW "+String(game.lines),120,58,4);
+        if(millis()-paint>=20){paint=millis();screen.spr.fillSprite(TFT_BLACK);uiNamedImage(10,4,ui_m11);screen.spr.setTextColor(TFT_WHITE,TFT_BLACK);screen.spr.drawString("S "+String(game.score)+" ROW "+String(game.lines),120,58,4);
             auto cell=[&](int x,int y,int type,bool outline){if(y<0||y>=20)return;int px=12+x*16,py=100+y*16;if(outline)screen.spr.drawRect(px+1,py+1,14,14,TFT_DARKGREY);else screen.spr.fillRoundRect(px+1,py+1,14,14,2,colors[type]);};
             for(int y=0;y<20;y++)for(int x=0;x<10;x++)if(game.board[y][x])cell(x,y,game.board[y][x]-1,false);
             int ghost=game.ghost();for(int y=0;y<4;y++)for(int x=0;x<4;x++)if(game.cell(game.piece,game.rotation,x,y)){cell(game.x+x,ghost+y,game.piece,true);cell(game.x+x,game.y+y,game.piece,false);}
@@ -1054,7 +1065,7 @@ void keysTest()
 	{
 		// 清屏并绘制框架
 		screen.spr.fillSprite(TFT_BLACK);
-		screen.spr.pushImage(10,12,220,44,ui_m5);
+		uiNamedImage(10,12,ui_m5);
 
 		// 4个前端按键
 		screen.spr.drawSmoothCircle(35, 75, 15, TFT_GREEN, TFT_BLACK);  // 抗锯齿的圆形
@@ -1214,7 +1225,7 @@ void cube() {
     UiRefresh refresh;
     screen.spr.unloadFont();screen.spr.setSwapBytes(true);screen.spr.setTextDatum(TC_DATUM);
     auto calibrateGyro=[&]() {
-        screen.spr.fillSprite(TFT_BLACK);screen.spr.pushImage(10,8,220,44,ui_m6);
+        screen.spr.fillSprite(TFT_BLACK);uiNamedImage(10,8,ui_m6);
         screen.spr.pushImage(10,200,220,44,ui_cubestill);screen.spr.pushImage(10,260,220,44,ui_cubecal);
         refresh.push((uint16_t*)screen.spr.getPointer());
         float sum[3]={},square[3]={};bool valid=true;
@@ -1265,7 +1276,7 @@ void cube() {
             }
             if(firstFrame) {
                 screen.spr.fillSprite(TFT_BLACK);
-                screen.spr.pushImage(10,8,220,44,ui_m6);
+                uiNamedImage(10,8,ui_m6);
                 screen.spr.drawFastHLine(20,106,200,TFT_DARKGREY);
                 screen.spr.pushImage(0,326,80,36,ui_cube_roll);screen.spr.pushImage(80,326,80,36,ui_cube_pitch);screen.spr.pushImage(160,326,80,36,ui_cube_yaw);
                 screen.spr.pushImage(10,408,220,44,ui_cubeyaw);
