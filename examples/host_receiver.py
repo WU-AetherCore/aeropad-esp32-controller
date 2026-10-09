@@ -66,12 +66,17 @@ class Decoder:
                 if len(self.buffer)>=191:self.errors+=1;self.buffer.clear();self.discard=True
                 else:self.buffer.append(b)
         return frames
+def display_line(f):
+    """One validated logical frame, independent of serial/BLE read boundaries."""
+    return (f"AP1 seq={f.seq} LX={f.lx} LY={f.ly} RX={f.rx} RY={f.ry} "
+            f"KL={f.kl} KR={f.kr} BTN={f.buttons:05X} AX={f.ax} AY={f.ay} N={f.neutral}")
+
 def motor_intent(f):
     if f.neutral or not f.buttons&1:return (0,0)
     clamp=lambda n:max(-100,min(100,n))
     return (int(clamp(-f.ly+f.rx)*.3),int(clamp(-f.ly-f.rx)*.3))
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--port',required=True);p.add_argument('--baud',type=int,default=115200);p.add_argument('--format',choices=('binary','json','hex','text'),default='binary');p.add_argument('--timeout-ms',type=int,default=300);args=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--port',required=True);p.add_argument('--baud',type=int,default=115200);p.add_argument('--format',choices=('binary','json','hex','text'),default='binary');p.add_argument('--timeout-ms',type=int,default=300);p.add_argument('--display',choices=('json','line'),default='json');args=p.parse_args()
     if args.timeout_ms<=0:p.error('timeout must be positive')
     import serial
     decoder=Decoder(args.format);last=None;previous=None;stopped=True
@@ -85,7 +90,7 @@ def main():
                     if f.neutral:print(json.dumps(dict(frame=asdict(f),motor_intent=(0,0)),ensure_ascii=False))
                     continue
                 previous=f.seq;last=time.monotonic();stopped=False
-                print(json.dumps(dict(frame=asdict(f),motor_intent=motor_intent(f)),ensure_ascii=False))
+                print(display_line(f) if args.display=='line' else json.dumps(dict(frame=asdict(f),motor_intent=motor_intent(f)),ensure_ascii=False),flush=True)
             if last is not None and now-last>=args.timeout_ms/1000 and not stopped:
                 print('STOP: valid-frame timeout; motor_intent=[0,0]');stopped=True;decoder.reset();previous=None
 if __name__=='__main__':main()

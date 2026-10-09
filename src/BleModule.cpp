@@ -43,7 +43,9 @@ void BleModule::stream(bool enabled){
  if(enabled&&_protocolActive&&_protocol.kind!=BleControl::Custom&&((_state.feedbackKind==C30dFeedback::RosState&&_protocol.kind<=BleControl::AppSteering)||(_state.feedbackKind==C30dFeedback::AppWheels&&_protocol.kind==BleControl::RosVelocity))){enabled=false;_state.stopReason=ProtocolStop;}
  if(enabled)_state.stopReason=NoStop;else if(previous)_state.stopReason=ManualStop;
  _state.streaming=enabled;
- if(!enabled&&_state.state==Connected&&(previous||_protocolActive)&&_stopFrames.load()==0){_stopAt=millis();_stopFrames=20;_state.stopUnconfirmed=previous||!_state.receiverZero||millis()-_state.lastCarFeedback>200;}
+ // Receiver-confirmed vehicle stopping belongs only to the vehicle protocol page.
+ bool vehicle=_protocolActive&&_protocol.kind!=BleControl::Custom;
+ if(!enabled&&vehicle&&_state.state==Connected&&(previous||_protocolActive)&&_stopFrames.load()==0){_stopAt=millis();_stopFrames=20;_state.stopUnconfirmed=previous||!_state.receiverZero||millis()-_state.lastCarFeedback>200;}
  portEXIT_CRITICAL(&_lock);if(!previous&&enabled)_protocolInit=true;
 }
 void BleModule::stop(StopReason reason){
@@ -116,13 +118,20 @@ bool BleModule::send(bool neutral) {
     if(neutral&&custom&&profile.kind<=BleControl::AppSteering){
         const uint8_t clear[]={0,'K',0,'I',0};memmove(data+sizeof(clear),data,length);memcpy(data,clear,sizeof(clear));length+=sizeof(clear);
     }
+    // GATT chunks are transport fragments, not control frames. UART receivers must
+    // assemble LF-terminated ASCII or fixed 20-byte CRC frames (CONTROL_PROTOCOL.md).
     size_t chunk=min(size_t(180),size_t(max(23,int(_client->getMTU()))-3));
-    bool confirmed=_write->canWrite()&&(neutral||setup||millis()-_lastConfirmed>=500);
+    // Legacy FFE0 UART modules may advertise Write but only implement Write Command.
+    // Keep actuator profile acknowledgement policy separate from generic UART transport.
+    const bool legacyUart=!custom&&strcmp(snapshot().profile,"FFE0")==0;
+    if(legacyUart)chunk=min(chunk,size_t(20));
+    bool confirmed=custom&&_write->canWrite()&&(neutral||setup||millis()-_lastConfirmed>=500);
     busy(true);
     for(size_t offset=0;offset<length;offset+=chunk) {
         if(!_client->isConnected()||!_write->writeValue(data+offset,min(chunk,length-offset),confirmed||!_write->canWriteNoResponse())) {
             busy(false);portENTER_CRITICAL(&_lock);_state.errors++;portEXIT_CRITICAL(&_lock);return false;
         }
+        if(legacyUart&&offset+chunk<length)vTaskDelay(pdMS_TO_TICKS(20));
     }
     if(setup)_protocolInit.store(false);
     if(custom&&speedUpdate){_lastSpeedSync=millis();_appSpeed=target;}
