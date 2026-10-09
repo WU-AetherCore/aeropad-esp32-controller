@@ -1,5 +1,6 @@
 // NRF diagnostic screen: NDG1 dedicated test or Jiangxie raw four-byte preset.
 void nrfDebug(){
+ RadioSession radioSession(RadioNrf);
  auto& radio=nrf.radio;NrfButtons buttons;NrfActionLatch oLatch;NrfAsyncTx asyncTx;
  const uint8_t oldChannel=radio.getChannel(),oldPower=radio.getPALevel(),oldSize=radio.getPayloadSize();
  const auto oldRate=radio.getDataRate();const auto oldCrc=radio.getCRCLength();

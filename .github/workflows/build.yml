@@ -13,7 +13,7 @@ jobs:
       - run: python -m pip install platformio==6.1.18
       - name: Protocol, navigation and geometry checks
         run: |
-          for test in control_packet control_receiver nrf_debug nrf_control nrf_buttons navigation cube local_games puzzle_games sokoban; do
+          for test in c30d_feedback ble_control_protocol control_packet control_receiver nrf_debug nrf_control nrf_buttons nrf_custom nrf_ui_policy navigation cube local_games puzzle_games sokoban; do
             g++ -std=c++17 tools/test_${test}.cpp -o /tmp/test_${test}
             /tmp/test_${test}
           done

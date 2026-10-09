@@ -25,3 +25,7 @@
 - [NRF 无人机与四驱车控制](NRF_CONTROL.md)：遥控操作、通用接收端、SBUS、差速混控与32字节协议。
 
 - [NRF设置](NRF_SETTINGS.md)：可保存的射频参数、地址、原始数据与江协参考程序预设。
+
+- [无人机与四驱车自定义协议和预设](NRF_CUSTOM_PROFILES.md)：逐字节映射、5 个独立槽位、保存/加载/删除。
+
+- [蓝牙协议遥控与C30D](BLUETOOTH_PROTOCOL_CONTROL.md)：内置APP/ROS、五个预设、自定义包、停止帧、BLE兼容范围。

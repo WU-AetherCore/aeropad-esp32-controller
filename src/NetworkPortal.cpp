@@ -10,7 +10,7 @@ namespace {
 WebServer server(80); DNSServer dns;
 std::atomic<int> command{0}; std::atomic<bool> ap{false};
 std::atomic<bool> bootConnect{true};bool stationAllowed=false;
-bool started=false;String savedSsid,savedPassword;uint32_t connectingAt=0;
+std::atomic<bool> enabled{false},offReady{true};bool started=false;String savedSsid,savedPassword;uint32_t connectingAt=0;
 bool scanning=false;uint32_t scanAt=0;String networks="{\"ready\":false,\"networks\":[]}";
 KVS telemetry;uint32_t sampledAt=0;portMUX_TYPE lock=portMUX_INITIALIZER_UNLOCKED;
 const char page[] PROGMEM=R"HTML(<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AeroPad WiFi 管理</title>
@@ -18,8 +18,8 @@ const char page[] PROGMEM=R"HTML(<!doctype html><html lang="zh-CN"><meta charset
 <h1>AeroPad · WiFi 管理</h1><p class="hint">热点地址 192.168.4.1。配置路由器后，热点仍保留，便于查看连接结果。</p>
 <section><h2>连接家庭 WiFi</h2><button onclick="scan()">搜索附近 WiFi</button><select id="net" onchange="ssid.value=this.value"><option>选择网络或手动填写</option></select>
 <form id="config"><label>WiFi 名称<input id="ssid" maxlength="32" required></label><label>WiFi 密码<input id="password" type="password" maxlength="64" autocomplete="new-password"></label><button>保存并连接</button></form><p id="msg"></p><button onclick="forget()">清除已保存的路由器</button><p class="hint">仅支持 2.4 GHz。密码保存在设备中，网页不会回传密码。清除配置需要确认。</p></section>
-<section><h2>开机连接设置</h2><label><input id="boot" type="checkbox" style="width:auto">开机自动连接已保存的 WiFi</label><button onclick="saveBoot()">保存开机设置</button><p class="hint">关闭后保留名称和密码，下次开机不连接。当前连接保持不变。</p></section>
-<section><h2>网络与设备状态</h2><pre id="status">正在读取…</pre></section><section><h2>实时控件数据</h2><pre id="keys"></pre><p class="hint">数据来自设备当前采样；返回其他页面后仍可查看。此页面只读，不发送遥控指令。</p></section>
+<section><h2>进入界面连接设置</h2><label><input id="boot" type="checkbox" style="width:auto">进入 WiFi 管理时自动连接已保存的 WiFi</label><button onclick="saveBoot()">保存自动连接设置</button><p class="hint">关闭后保留名称和密码，再次进入 WiFi 管理时不自动连接。退出管理界面会关闭无线网络。</p></section>
+<section><h2>网络与设备状态</h2><pre id="status">正在读取…</pre></section><section><h2>实时控件数据</h2><pre id="keys"></pre><p class="hint">数据来自设备当前采样；只在 WiFi 管理界面运行，退出后热点与网页关闭。此页面只读，不发送遥控指令。</p></section>
 <script>
 const $=id=>document.getElementById(id);let scanPending=false;
 let bootLoaded=false;async function saveBoot(){try{let r=await request('/api/autoconnect',{method:'POST',body:new URLSearchParams({enabled:$('boot').checked?'1':'0'})});$('msg').textContent=await r.text();bootLoaded=false;}catch(e){$('msg').textContent='保存失败，请重试'}}
@@ -41,7 +41,7 @@ void worker(void*){
     // in coex_core_enable when the BLE controller starts.
     WiFi.persistent(false);WiFi.mode(WIFI_STA);WiFi.setSleep(true);WiFi.setAutoReconnect(false);WiFi.disconnect();if(bootConnect)join();
     server.on("/api/autoconnect",HTTP_GET,[]{server.send(200,"application/json",bootConnect?"{\"enabled\":true}":"{\"enabled\":false}");});
-    server.on("/api/autoconnect",HTTP_POST,[]{String v=server.arg("enabled");if(v!="0"&&v!="1"){server.send(400,"text/plain","invalid");return;}saveBoot(v=="1");server.send(200,"text/plain; charset=utf-8",bootConnect?"已保存：开机自动连接 WiFi":"已保存：开机不连接 WiFi");});
+    server.on("/api/autoconnect",HTTP_POST,[]{String v=server.arg("enabled");if(v!="0"&&v!="1"){server.send(400,"text/plain","invalid");return;}saveBoot(v=="1");server.send(200,"text/plain; charset=utf-8",bootConnect?"已保存：进入界面自动连接 WiFi":"已保存：进入界面不自动连接 WiFi");});
     server.on("/api/live",HTTP_GET,[]{KVS k;uint32_t age;portENTER_CRITICAL(&lock);k=telemetry;age=millis()-sampledAt;portEXIT_CRITICAL(&lock);char j[220];snprintf(j,sizeof(j),"{\"lx\":%d,\"ly\":%d,\"rx\":%d,\"ry\":%d,\"kl\":%d,\"kr\":%d,\"ax\":%d,\"ay\":%d,\"buttons\":%lu,\"age\":%lu}",k.LX,k.LY,k.RX,k.RY,k.L_knob,k.R_knob,k.angleX,k.angleY,(unsigned long)ControlPacket::buttons(k),(unsigned long)age);server.sendHeader("Cache-Control","no-store");server.send(200,"application/json",j);});
     server.on("/",HTTP_GET,[]{server.send_P(200,"text/html; charset=utf-8",page);});
     server.on("/api/status",HTTP_GET,[]{KVS k;uint32_t age;portENTER_CRITICAL(&lock);k=telemetry;age=millis()-sampledAt;portEXIT_CRITICAL(&lock);
@@ -54,14 +54,19 @@ void worker(void*){
     server.on("/api/scan",HTTP_POST,[]{if(scanning){server.send(202,"text/plain","scanning");return;}if(scanAt&&millis()-scanAt<5000){server.send(429,"text/plain; charset=utf-8","请等待5秒再搜索");return;}if(WiFi.status()!=WL_CONNECTED&&connectingAt&&millis()-connectingAt<20000){server.send(409,"text/plain; charset=utf-8","正在连接路由器，请稍后搜索");return;}WiFi.setAutoReconnect(false);WiFi.scanDelete();int result=WiFi.scanNetworks(true,false,true,120);scanning=result==WIFI_SCAN_RUNNING;scanAt=millis();networks="{\"ready\":false,\"networks\":[]}";if(!scanning){WiFi.setAutoReconnect(true);networks="{\"ready\":false,\"failed\":true,\"networks\":[]}";server.send(503,"text/plain; charset=utf-8","搜索启动失败，请重试");return;}server.send(202,"text/plain","scanning");});
     server.on("/api/networks",HTTP_GET,[]{server.sendHeader("Cache-Control","no-store");server.send(200,"application/json",networks);});
     server.onNotFound([]{server.sendHeader("Location","http://192.168.4.1/");server.send(302,"text/plain","");});server.begin();
-    for(;;){int c=command.exchange(0);if(c==2||c==3)saveBoot(c==3);if(c==1){if(ap){dns.stop();WiFi.softAPdisconnect(true);ap=false;WiFi.mode(WIFI_STA);}else startAp();}
+    for(;;){
+        if(!enabled){if(!offReady){dns.stop();server.stop();ap=false;WiFi.scanDelete();scanning=false;WiFi.setAutoReconnect(false);WiFi.disconnect();WiFi.softAPdisconnect(true);WiFi.mode(WIFI_OFF);stationAllowed=false;connectingAt=0;command=0;offReady=true;}vTaskDelay(pdMS_TO_TICKS(10));continue;}
+        if(offReady){offReady=false;server.begin();WiFi.mode(WIFI_STA);WiFi.setSleep(true);if(bootConnect)join();}
+        int c=command.exchange(0);if(c==2||c==3)saveBoot(c==3);if(c==1){if(ap){dns.stop();WiFi.softAPdisconnect(true);ap=false;WiFi.mode(WIFI_STA);}else startAp();}
         if(scanning){int n=WiFi.scanComplete();if(n>=0||n==WIFI_SCAN_FAILED||millis()-scanAt>12000){networks=n>=0?"{\"ready\":true,\"networks\":[":"{\"ready\":false,\"failed\":true,\"networks\":[";for(int i=0;i<min(n,32);i++){if(i)networks+=',';networks+="{\"ssid\":"+quote(WiFi.SSID(i))+",\"rssi\":"+String(WiFi.RSSI(i))+"}";}networks+="]}";WiFi.scanDelete();scanning=false;WiFi.setAutoReconnect(true);}}
         if(ap)dns.processNextRequest();server.handleClient();vTaskDelay(pdMS_TO_TICKS(2));}
 }
 }
-void WIFI::begin(){if(started)return;started=true;xTaskCreate(worker,"wifi_portal",8192,nullptr,1,nullptr);}
+void WIFI::begin(){enabled=true;if(started)return;offReady=false;started=true;xTaskCreate(worker,"wifi_portal",8192,nullptr,1,nullptr);}
 void WIFI::toggleHotspot(){begin();command=1;}
 bool WIFI::hotspot(){return ap.load();}
 bool WIFI::autoConnect(){return bootConnect.load();}
 void WIFI::setAutoConnect(bool enabled){begin();command=enabled?3:2;}
 void WIFI::publish(const KVS& data){portENTER_CRITICAL(&lock);telemetry=data;sampledAt=millis();portEXIT_CRITICAL(&lock);}
+
+void WIFI::end(){enabled=false;if(!started)return;uint32_t at=millis();while(!offReady&&millis()-at<2000)delay(5);}

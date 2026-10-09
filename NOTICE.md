@@ -17,3 +17,5 @@
 WU-AetherCore 维护的改动包括 CLion/PlatformIO 工程化、校准与掉电保存、中文界面与刷新、BLE HID、BLE-UART 控制和回显、自定义 v1 控制协议、WiFi 管理、设备监测、本机游戏、接收端示例及测试。具体修改见 [CHANGELOG.md](CHANGELOG.md)。
 
 新增中文位图使用 Noto Sans CJK SC（SIL OFL 1.1）；继承的 `chinese_32` 和原图标明确作为原项目资源保留。推箱子参考开源 Sokoban 的规则与设计说明，本项目固定关卡为自生成布局，未复制该项目的地图、图形或声音。
+
+WHEELTEC/轮趣科技 C30D协议兼容部分依据用户持有的厂商接收程序资料独立实现，厂商程序及协议资料的原作者为WHEELTEC；本仓库不复制或重新许可该厂商固件，也不是厂商官方发布。协议来源与适用接口见[蓝牙协议遥控说明](docs/BLUETOOTH_PROTOCOL_CONTROL.md)。

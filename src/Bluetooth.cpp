@@ -1,10 +1,10 @@
 #include "Bluetooth.h"
 #include <NimBLEDevice.h>
 Bluetooth::Bluetooth() : _gamepad("AeroPad BLE Gamepad", "AeroPad", 100) {}
-void Bluetooth::begin() {
+void Bluetooth::begin(bool advertise) {
     if(_started) {
         auto server=NimBLEDevice::getServer();
-        if(server){server->advertiseOnDisconnect(true);NimBLEDevice::getAdvertising()->start();}
+        if(server){server->advertiseOnDisconnect(advertise);if(advertise)NimBLEDevice::getAdvertising()->start();else NimBLEDevice::getAdvertising()->stop();}
         return;
     }
     BleGamepadConfiguration config;
@@ -12,6 +12,7 @@ void Bluetooth::begin() {
     config.setWhichAxes(true,true,false,true,true,false,true,true);
     config.setButtonCount(14);config.setHatSwitchCount(1);config.setAutoReport(false);
     _gamepad.begin(&config);_started=true;
+    if(!advertise)suspendGamepad();
     Serial.println("[BLE] advertising: signed full-range axes, 14 buttons, D-pad");
 }
 bool Bluetooth::connected() {
@@ -32,17 +33,18 @@ void Bluetooth::update(const KVS &s) {
     _gamepad.setHat(hat);_gamepad.sendReport();
 }
 void Bluetooth::releaseAll() {
-    if(!_started)return;
+    if(!_started||!connected())return;
     _gamepad.resetButtons();_gamepad.setAxes();_gamepad.setHat(0);_gamepad.sendReport();
 }
 void Bluetooth::suspendGamepad() {
+    if(!_started)return;
     uint32_t start=millis();
     while(millis()-start<3000) {
         auto server=NimBLEDevice::getServer();
-        if(server&&(NimBLEDevice::getAdvertising()->isAdvertising()||server->getConnectedCount()))break;
+        if(server&&(_serverReady||NimBLEDevice::getAdvertising()->isAdvertising()||server->getConnectedCount()))break;
         delay(10);
     }
-    auto server=NimBLEDevice::getServer();if(!server)return;
+    auto server=NimBLEDevice::getServer();if(!server)return;_serverReady=true;
     releaseAll();server->advertiseOnDisconnect(false);NimBLEDevice::getAdvertising()->stop();
     for(auto handle:server->getPeerDevices())server->disconnect(handle);
     start=millis();while(server->getConnectedCount()&&millis()-start<1000)delay(10);

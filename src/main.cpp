@@ -11,8 +11,11 @@
 #include "NrfUiText.h"
 #include "NrfDebugPacket.h"
 #include "NrfGenericConfig.h"
+#include "NrfCustomProfile.h"
 #include "NrfButtons.h"
 #include "NrfActionLatch.h"
+#include "NrfExitChord.h"
+#include "NrfUiPolicy.h"
 #include "NrfAsyncTx.h"
 #include "NrfControlProtocol.h"
 #include "Keys.h"
@@ -23,6 +26,7 @@
 #include <WiFi.h>
 #include <esp_heap_caps.h>
 #include <esp_ota_ops.h>
+#include <esp_system.h>
 #include "LED.h"
 #include "Buzzer.h"
 #include "controller_keys.h" // 按键引脚定义
@@ -82,7 +86,8 @@ Buzzer buzzer;   // 蜂鸣器
 //-------------------------------------------- 一级菜单  -------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 void menu();			// 0.主菜单     ->   1.NRF遥控  2.本机游戏    4.网络信息  5.蓝牙手柄  6.系统设置
-void nrfControlPage(uint8_t mode);
+int nrfControlPage(uint8_t mode);
+void nrfVehiclePage(uint8_t mode);
 void nrfDebug();
 void nrfGeneric();
 void NRFControl();		// 1.NRF遥控    ->   无人机 / 四驱车
@@ -92,6 +97,7 @@ void wifiSettings();                 // 4.4 WiFi 管理：热点、网页配网�
 void deviceMonitor();                // 6.4 设备监测：内存、硬件、网络和蓝牙统计
 void joystickCalibration();
 void bluetoothMenu();
+void bluetoothProtocolControl(); // 蓝牙协议遥控、C30D内置协议与五个自定义预设
 void bluetoothModules();
 void bluetoothOutputSettings();
 void bluetoothBaudSettings();
@@ -140,19 +146,28 @@ void closeGetVolTimer(int timerID); // 关闭周期性获取电压（定时器ID
 
 
 
+int activeRadio=-1;
+void radioStatus(){auto server=NimBLEDevice::getServer();Serial.printf("[RADIO STATUS] mode=%d wifi=%d adv=%d scan=%d hid=%u module=%d\n",activeRadio,int(WiFi.getMode()),server?NimBLEDevice::getAdvertising()->isAdvertising():0,server?NimBLEDevice::getScan()->isScanning():0,server?server->getConnectedCount():0,bleModule.snapshot().state==BleModule::Connected);}
+enum RadioMode { RadioWifi, RadioModule, RadioGamepad, RadioNrf };
+void quietRadios(){activeRadio=-1;wifi.end();bleModule.pause();bt.suspendGamepad();nrf.radio.stopListening();nrf.radio.powerDown();Serial.println("[RADIO] WiFi off; BLE scan/advertising/connections off; NRF power down");}
+struct RadioSession {
+ explicit RadioSession(RadioMode mode){quietRadios();activeRadio=mode;if(mode==RadioWifi)wifi.begin();else if(mode==RadioNrf)nrf.radio.powerUp();else{bt.begin(mode==RadioGamepad);if(mode==RadioModule)bleModule.begin();}Serial.printf("[RADIO] active mode=%d heap=%u minheap=%u largest=%u stack=%u\n",mode,ESP.getFreeHeap(),ESP.getMinFreeHeap(),heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),unsigned(uxTaskGetStackHighWaterMark(nullptr)));}
+ ~RadioSession(){quietRadios();}
+};
 void setup() {
 	Serial.begin(115200);
 	delay(1000);
 	Serial.println("[AeroPad] CLion firmware starting");
+    Serial.printf("[RESET] reason=%d heap=%u minheap=%u largest=%u stack=%u\n",int(esp_reset_reason()),ESP.getFreeHeap(),ESP.getMinFreeHeap(),heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),unsigned(uxTaskGetStackHighWaterMark(nullptr)));
 	Serial.printf("[Memory] Flash=%u PSRAM=%u FreeHeap=%u\n",
 	              ESP.getFlashChipSize(), ESP.getPsramSize(), ESP.getFreeHeap());
 
-	nrf.init(ID, 0);			 // (遥控器ID, 通信功率，0-3)
+	nrf.init(ID, 0);nrf.radio.powerDown();			 // (遥控器ID, 通信功率，0-3)
 	keys.init(ID);
 	screen.init();
 	buzzer.init();
 	led.init();
-    wifi.begin();                    // 后台维护网页服务及已保存路由器连接
+    // Radios remain idle until their corresponding control page is entered.
 
 	// 基本功能测试
 	{
@@ -236,6 +251,7 @@ void uiFooter(bool menuPage) {
 }
 const uint16_t nrfGenericTitle[1]={0};
 const uint16_t nrfDebugTitle[1]={0}; // Menu sentinel: compact monochrome title.
+const uint16_t bleProtocolTitle[1]={0};
 void selectMenu(const uint16_t *const *titles, const uint16_t *const *icons, void (**actions)(), int count, bool root=false, const uint16_t* category=nullptr) {
     int index=0; bool dirty=true;
     JoystickNavigation navigation;
@@ -254,16 +270,31 @@ void selectMenu(const uint16_t *const *titles, const uint16_t *const *icons, voi
         if(root && cmd=='V') { bluetoothModules(); dirty=true; }
         if(root && cmd=='I') { bluetoothLayoutPreview(); dirty=true; }
         if(cmd=='P') keys.printCalibration();
+        if(cmd=='F'){radioStatus();nrf.radio.printDetails();}
         if(dirty) {
             screen.spr.unloadFont(); screen.spr.setSwapBytes(true); screen.spr.fillSprite(TFT_BLACK);
             screen.spr.pushImage(10,12,220,44,category?category:root?ui_m0:ui_menugroup);
             screen.spr.drawFastHLine(20,68,200,TFT_DARKGREY);
             if(titles[index]==nrfGenericTitle) screen.spr.drawBitmap(10,94,NrfUi::generic,220,36,TFT_WHITE);
             else if(titles[index]==nrfDebugTitle) screen.spr.drawBitmap(10,94,NrfUi::title,220,36,TFT_WHITE);
+            else if(titles[index]==bleProtocolTitle) screen.spr.drawBitmap(10,94,NrfUi::bptitle,220,36,TFT_WHITE);
             else screen.spr.pushImage(10,92,220,44,titles[index]);
             if(icons && icons[index]) screen.spr.pushImage(20,178,200,200,icons[index]);
             else {
-                if(titles[index]==ui_module) {
+                if(titles[index]==bleProtocolTitle) {
+                    // Dedicated 200x200 vector asset: packet bridge with Bluetooth rune.
+                    screen.spr.drawRoundRect(25,183,190,190,24,TFT_CYAN);
+                    screen.spr.drawRoundRect(31,189,178,178,20,TFT_CYAN);
+                    screen.spr.fillRoundRect(45,224,54,108,9,0x0843);
+                    screen.spr.drawRoundRect(45,224,54,108,9,TFT_WHITE);
+                    for(int i=0;i<3;i++)screen.spr.fillRoundRect(54,239+i*31,35,9,3,i==1?TFT_GREEN:TFT_CYAN);
+                    screen.spr.drawLine(121,214,121,342,TFT_CYAN);
+                    screen.spr.drawLine(121,214,170,248,TFT_CYAN);
+                    screen.spr.drawLine(170,248,108,296,TFT_CYAN);
+                    screen.spr.drawLine(108,260,170,308,TFT_CYAN);
+                    screen.spr.drawLine(170,308,121,342,TFT_CYAN);
+                    screen.spr.fillTriangle(180,270,180,286,194,278,TFT_GREEN);
+                } else if(titles[index]==ui_module) {
                     screen.spr.fillRoundRect(78,208,84,136,12,0x0843);
                     screen.spr.drawRoundRect(78,208,84,136,12,TFT_CYAN);
                     screen.spr.fillTriangle(112,227,112,272,145,248,TFT_CYAN);
@@ -306,7 +337,7 @@ void selectMenu(const uint16_t *const *titles, const uint16_t *const *icons, voi
     }
     screen.spr.loadFont(chinese_32); screen.spr.setTextDatum(TC_DATUM); screen.spr.fillSprite(TFT_BLACK);
 }
-void car() { nrfControlPage(NrfControl::Car); }
+void car() { nrfVehiclePage(NrfControl::Car); }
 void menu() {
     const uint16_t *titles[]={ui_m1,ui_m2,ui_m3,ui_blehub,ui_m4};
     const uint16_t *icons[]={image_data_1nrf,image_data_2game,image_data_4info,image_data_5ble,image_data_6set};
@@ -334,7 +365,7 @@ void netInfo() {
 }
 
 void wifiSettings(){
-    wifi.begin();UiRefresh refresh;screen.spr.unloadFont();screen.spr.setSwapBytes(true);screen.spr.setTextDatum(TC_DATUM);
+    RadioSession radioSession(RadioWifi);UiRefresh refresh;screen.spr.unloadFont();screen.spr.setSwapBytes(true);screen.spr.setTextDatum(TC_DATUM);
     while(true){keys.kvs_update();char cmd=Serial.available()?Serial.read():0;
         if(keys.x.pressed()||cmd=='Q')break;if(keys.o.pressed()||cmd=='E')wifi.toggleHotspot();
         if(keys.a.pressed()||cmd=='A')wifi.setAutoConnect(!wifi.autoConnect());
@@ -399,11 +430,12 @@ void serialSettings() {
     screen.spr.loadFont(chinese_32);screen.spr.fillSprite(TFT_BLACK);
 }
 void bluetoothMenu() {
-    const uint16_t *titles[]={ui_title,ui_module,ui_sendsettings};
-    const uint16_t *icons[]={image_data_5ble,nullptr,nullptr};
-    void (*actions[])()={btGamepad,bluetoothModules,bluetoothOutputSettings};
-    selectMenu(titles,icons,actions,3,false,ui_blehub);
+    const uint16_t *titles[]={bleProtocolTitle,ui_title,ui_module,ui_sendsettings};
+    const uint16_t *icons[]={nullptr,image_data_5ble,nullptr,nullptr};
+    void (*actions[])()={bluetoothProtocolControl,btGamepad,bluetoothModules,bluetoothOutputSettings};
+    selectMenu(titles,icons,actions,4,false,ui_blehub);
 }
+#include "BleProtocolPage.inc"
 void bluetoothModuleSettings(){
     const uint16_t* titles[]={ui_uartsettings,ui_sendsettings};
     const uint16_t* icons[]={nullptr,nullptr};void(*actions[])()={serialSettings,bluetoothOutputSettings};
@@ -543,8 +575,8 @@ void bluetoothLayoutPreview() {
     screen.spr.loadFont(chinese_32);screen.spr.fillSprite(TFT_BLACK);
 }
 void bluetoothModules() {
-    bt.begin();bt.suspendGamepad();bleModule.begin();bleModule.stream(false);bleModule.scan();
-    JoystickNavigation navigation;UiRefresh refresh;int selected=0,action=0;bool control=false,linked=false;
+    RadioSession radioSession(RadioModule);bleModule.stream(false);bleModule.scan();
+    NrfExitChord moduleExit;JoystickNavigation navigation;UiRefresh refresh;int selected=0,action=0;bool control=false,linked=false;
     screen.spr.unloadFont();screen.spr.setSwapBytes(true);screen.spr.setTextDatum(TC_DATUM);
     uint32_t last=0;
     while(true) {
@@ -558,9 +590,10 @@ void bluetoothModules() {
         }
         if(status.state==BleModule::Connected&&!linked){linked=true;action=0;navigation.reset();}
         if(status.state!=BleModule::Connected&&linked){linked=false;control=false;bleModule.stream(false);navigation.reset();}
+        if(!control)moduleExit.update(!keys.kvs.b,!keys.kvs.x,millis());
         if(control) {
             // All individual buttons remain payload inputs. Only the two-key chord exits.
-            if(cmd=='Q'||(!keys.kvs.b&&!keys.kvs.x)){bleModule.stream(false);control=false;navigation.reset();}
+            if(cmd=='Q'||moduleExit.update(!keys.kvs.b,!keys.kvs.x,millis())){bleModule.stream(false);control=false;navigation.reset();}
         } else if(linked) {
             auto move=navigation.update(keys.kvs.LX,keys.kvs.LY,millis());
             bool prev=keys.up.pressed()||keys.left.pressed()||cmd=='U'||cmd=='L'||move==JoystickNavigation::Up||move==JoystickNavigation::Left;
@@ -596,7 +629,7 @@ void bluetoothModules() {
 // 5.蓝牙手柄：BLE HID 标准手柄，连接后实时发送摇杆和按键状态。
 void btGamepad()
 {
-    bt.begin();
+    RadioSession radioSession(RadioGamepad);NrfExitChord exitChord;
     screen.spr.unloadFont();
     screen.spr.setTextDatum(TC_DATUM);
     screen.spr.setSwapBytes(true);
@@ -665,7 +698,7 @@ void btGamepad()
             if(command=='C')bt.begin();
             if(command=='T') Serial.printf("[UI] frames=%u elapsed=%ums average_period=%ums average_render=%uus connected=%d\n",frames,millis()-perfStart,frames?frameTime/frames:0,frames?renderTime/frames:0,bt.connected());
         }
-        if(keys.kvs.b==0 && keys.kvs.x==0) break;
+        if(exitChord.update(!keys.kvs.b,!keys.kvs.x,millis())) break;
         delay(1);
     }
     bt.releaseAll();
@@ -844,7 +877,7 @@ void joystickCalibration()
 
 
 // 1.4 无人机
-void drone() { nrfControlPage(NrfControl::Drone); }
+void drone() { nrfVehiclePage(NrfControl::Drone); }
 
 // 1.5 挖掘机
 

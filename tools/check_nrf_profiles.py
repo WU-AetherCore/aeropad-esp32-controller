@@ -1,0 +1,4 @@
+"""Compatibility entry point for the current COM11 vehicle regression."""
+from pathlib import Path
+import runpy
+runpy.run_path(str(Path(__file__).with_name("check_nrf_safety_ui.py")),run_name="__main__")
